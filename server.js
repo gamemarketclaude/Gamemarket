@@ -1,6 +1,7 @@
 require('dotenv').config();
 
 const crypto = require('crypto');
+const fs = require('fs');
 const express = require('express');
 const session = require('express-session');
 const bcrypt = require('bcryptjs');
@@ -9,6 +10,7 @@ const helmet = require('helmet');
 const cors = require('cors');
 const cookieParser = require('cookie-parser');
 const rateLimit = require('express-rate-limit');
+const multer = require('multer');
 const db = require('./db');
 const SqliteSessionStore = require('./lib/sqliteSessionStore');
 const { checkMessage, checkPhoneSplitting, hasSuspiciousDigitRun } = require('./lib/messageFilter');
@@ -22,6 +24,33 @@ const RARITIES = ['common', 'rare', 'epic', 'legendary'];
 const RARITY_LABELS = { common: 'Обычное', rare: 'Редкое', epic: 'Эпическое', legendary: 'Легендарное' };
 const REMEMBER_ME_MS = 1000 * 60 * 60 * 24 * 30; // 30 дней
 const CSRF_COOKIE = 'gv.csrf';
+const MAX_PRODUCT_IMAGES = 4;
+
+// ---------- Загрузка фото товара ----------
+const UPLOADS_DIR = path.join(__dirname, 'public', 'uploads', 'products');
+fs.mkdirSync(UPLOADS_DIR, { recursive: true });
+
+const ALLOWED_IMAGE_TYPES = {
+  'image/jpeg': '.jpg',
+  'image/png': '.png',
+  'image/webp': '.webp',
+};
+
+const upload = multer({
+  storage: multer.diskStorage({
+    destination: UPLOADS_DIR,
+    // Имя файла — случайное (никогда не из пользовательского ввода), расширение
+    // берём из проверенного MIME-типа, а не из исходного имени файла.
+    filename: (req, file, cb) => cb(null, crypto.randomBytes(16).toString('hex') + ALLOWED_IMAGE_TYPES[file.mimetype]),
+  }),
+  limits: { fileSize: 5 * 1024 * 1024, files: MAX_PRODUCT_IMAGES },
+  fileFilter: (req, file, cb) => {
+    if (!ALLOWED_IMAGE_TYPES[file.mimetype]) {
+      return cb(new Error('UNSUPPORTED_IMAGE_TYPE'));
+    }
+    cb(null, true);
+  },
+});
 
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
@@ -37,7 +66,7 @@ app.use(helmet({
       defaultSrc: ["'self'"],
       styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
       fontSrc: ["'self'", 'https://fonts.gstatic.com'],
-      imgSrc: ["'self'", 'data:'],
+      imgSrc: ["'self'", 'data:', 'blob:'],
       scriptSrc: ["'self'"],
       connectSrc: ["'self'"],
       objectSrc: ["'none'"],
@@ -201,6 +230,10 @@ function getGameBySlug(slug) {
   return db.prepare('SELECT * FROM games WHERE slug = ?').get(slug);
 }
 
+function getProductImages(productId) {
+  return db.prepare('SELECT filename FROM product_images WHERE product_id = ? ORDER BY position ASC').all(productId).map((r) => r.filename);
+}
+
 function establishSession(req, userId, remember) {
   return new Promise((resolve, reject) => {
     req.session.regenerate((err) => {
@@ -218,7 +251,8 @@ const SELLER_JOIN = `
   SELECT p.*, c.name AS category_name, c.slug AS category_slug, c.icon AS category_icon,
          g.slug AS game_slug, g.name_ru AS game_name_ru, g.name_en AS game_name_en, g.icon AS game_icon,
          u.display_name AS seller_name, u.username AS seller_username,
-         u.rating AS seller_rating, u.deals_count AS seller_deals
+         u.rating AS seller_rating, u.deals_count AS seller_deals,
+         (SELECT filename FROM product_images WHERE product_id = p.id ORDER BY position ASC LIMIT 1) AS cover_image
   FROM products p
   JOIN categories c ON p.category_id = c.id
   JOIN games g ON p.game_id = g.id
@@ -237,9 +271,9 @@ app.get('/', (req, res) => {
     params.push(category);
   }
   if (q) {
-    query += ' AND (lower_ru(p.title) LIKE ? OR lower_ru(g.name_ru) LIKE ? OR lower_ru(g.name_en) LIKE ? OR g.aliases LIKE ?)';
+    query += ' AND (lower_ru(p.title) LIKE ? OR lower_ru(p.notable_items) LIKE ? OR lower_ru(g.name_ru) LIKE ? OR lower_ru(g.name_en) LIKE ? OR g.aliases LIKE ?)';
     const like = `%${q.toLowerCase()}%`;
-    params.push(like, like, like, like);
+    params.push(like, like, like, like, like);
   }
   if (min && !Number.isNaN(Number(min))) {
     query += ' AND p.price >= ?';
@@ -344,28 +378,60 @@ app.get('/game/:slug', (req, res) => {
 });
 
 // ---------- Выставление товара на продажу ----------
-app.get('/sell', requireAuth, (req, res) => {
-  res.render('sell', {
-    categories: getCategories(),
-    rarities: RARITIES,
-    rarityLabels: RARITY_LABELS,
-    error: null,
-    formValues: {},
-    selectedGame: null,
-  });
-});
+function cleanupUploadedFiles(files) {
+  (files || []).forEach((f) => fs.unlink(f.path, () => {}));
+}
 
-app.post('/sell', requireAuth, verifyCsrf, (req, res) => {
+// Оборачиваем multer, чтобы его ошибки (не та картинка, слишком большой файл,
+// слишком много файлов) превращались в обычную ошибку формы, а не в 500-ю.
+function handleProductUpload(req, res, next) {
+  upload.array('images', MAX_PRODUCT_IMAGES)(req, res, (err) => {
+    if (err) {
+      let message = 'Не удалось загрузить фото. Попробуйте другой файл.';
+      if (err.code === 'LIMIT_FILE_SIZE') message = 'Каждое фото должно быть не больше 5 МБ.';
+      else if (err.code === 'LIMIT_FILE_COUNT' || err.code === 'LIMIT_UNEXPECTED_FILE') message = `Можно загрузить не больше ${MAX_PRODUCT_IMAGES} фото.`;
+      else if (err.message === 'UNSUPPORTED_IMAGE_TYPE') message = 'Поддерживаются только изображения JPG, PNG и WEBP.';
+      cleanupUploadedFiles(req.files);
+      req.uploadError = message;
+    }
+    next();
+  });
+}
+
+app.get('/sell', requireAuth, (req, res) => {
+  const preselectedGame = req.query.game ? getGameBySlug(req.query.game) : null;
   const categories = getCategories();
-  const selectedGame = req.body.game_id ? db.prepare('SELECT * FROM games WHERE id = ?').get(Number(req.body.game_id)) : null;
-  const fail = (message) => res.status(400).render('sell', {
+  const preselectedCategory = categories.find((c) => c.slug === req.query.category);
+
+  res.render('sell', {
     categories,
     rarities: RARITIES,
     rarityLabels: RARITY_LABELS,
-    error: message,
-    formValues: req.body,
-    selectedGame,
+    maxImages: MAX_PRODUCT_IMAGES,
+    error: null,
+    formValues: preselectedCategory ? { category: preselectedCategory.slug } : {},
+    selectedGame: preselectedGame,
   });
+});
+
+app.post('/sell', requireAuth, handleProductUpload, verifyCsrf, (req, res) => {
+  const categories = getCategories();
+  const selectedGame = req.body.game_id ? db.prepare('SELECT * FROM games WHERE id = ?').get(Number(req.body.game_id)) : null;
+
+  const fail = (message) => {
+    cleanupUploadedFiles(req.files);
+    return res.status(400).render('sell', {
+      categories,
+      rarities: RARITIES,
+      rarityLabels: RARITY_LABELS,
+      maxImages: MAX_PRODUCT_IMAGES,
+      error: message,
+      formValues: req.body,
+      selectedGame,
+    });
+  };
+
+  if (req.uploadError) return fail(req.uploadError);
 
   const title = (req.body.title || '').trim();
   const description = (req.body.description || '').trim();
@@ -384,11 +450,30 @@ app.post('/sell', requireAuth, verifyCsrf, (req, res) => {
   if (!Number.isFinite(price) || price <= 0 || price > 10_000_000) return fail('Укажите корректную цену');
   if (!Number.isInteger(stock) || stock < 1 || stock > 9999) return fail('Укажите корректное количество (целое число от 1)');
 
+  // Для аккаунтов покупателю важно быстро опознать товар: сколько скинов/предметов
+  // и 2-3 приметных названия — это же участвует в общем поиске по сайту.
+  let itemsCount = null;
+  let notableItems = null;
+  if (category.slug === 'accounts') {
+    itemsCount = Number(req.body.items_count);
+    if (!Number.isInteger(itemsCount) || itemsCount < 1 || itemsCount > 999) {
+      return fail('Укажите количество предметов/скинов на аккаунте (целое число от 1 до 999)');
+    }
+    const rawItems = (req.body.notable_items || '').split(',').map((s) => s.trim()).filter(Boolean);
+    if (rawItems.length < 2) {
+      return fail('Укажите минимум 2 приметных названия предмета/скина через запятую — по ним покупатель узнаёт аккаунт');
+    }
+    if (rawItems.length > 8 || rawItems.some((s) => s.length > 60)) {
+      return fail('До 8 названий, каждое не длиннее 60 символов');
+    }
+    notableItems = rawItems.join(', ');
+  }
+
   const imageSeed = crypto.randomBytes(6).toString('hex');
 
   const info = db.prepare(`
-    INSERT INTO products (category_id, game_id, seller_id, title, description, price, rarity, image_seed, stock)
-    VALUES (@category_id, @game_id, @seller_id, @title, @description, @price, @rarity, @image_seed, @stock)
+    INSERT INTO products (category_id, game_id, seller_id, title, description, price, rarity, image_seed, stock, items_count, notable_items)
+    VALUES (@category_id, @game_id, @seller_id, @title, @description, @price, @rarity, @image_seed, @stock, @items_count, @notable_items)
   `).run({
     category_id: category.id,
     game_id: selectedGame.id,
@@ -399,7 +484,14 @@ app.post('/sell', requireAuth, verifyCsrf, (req, res) => {
     rarity,
     image_seed: imageSeed,
     stock,
+    items_count: itemsCount,
+    notable_items: notableItems,
   });
+
+  if (req.files && req.files.length) {
+    const insertImage = db.prepare('INSERT INTO product_images (product_id, filename, position) VALUES (?, ?, ?)');
+    req.files.forEach((file, i) => insertImage.run(info.lastInsertRowid, file.filename, i));
+  }
 
   res.redirect(`/product/${info.lastInsertRowid}`);
 });
@@ -429,6 +521,7 @@ app.get('/product/:id', (req, res) => {
 
   res.render('product', {
     product,
+    images: getProductImages(product.id),
     similar,
     messages,
     rarityLabels: RARITY_LABELS,

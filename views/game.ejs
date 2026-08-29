@@ -18,6 +18,7 @@
         <h1 class="game-head__title"><%= game.name_ru %></h1>
         <div class="game-head__meta"><%= game.name_en %></div>
       </div>
+      <a href="/sell?game=<%= game.slug %><%= activeSection ? '&category=' + activeSection : '' %>" class="btn btn--accent game-head__sell">Продать</a>
     </div>
 
     <div class="game-tabs">
@@ -47,7 +48,7 @@
       <div class="empty-state">
         <%- include('partials/art', { seed: game.slug, rarity: 'common', icon: '' }) %>
         <p>По игре «<%= game.name_ru %>» пока нет предложений в этом разделе.</p>
-        <a href="/sell" class="btn btn--accent" style="margin-top:12px; display:inline-block;">Выставить первым</a>
+        <a href="/sell?game=<%= game.slug %><%= activeSection ? '&category=' + activeSection : '' %>" class="btn btn--accent" style="margin-top:12px; display:inline-block;">Выставить первым</a>
       </div>
     <% } else { %>
       <div class="grid">

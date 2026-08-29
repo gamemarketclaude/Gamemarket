@@ -14,7 +14,7 @@
 
       <% if (error) { %><div class="form-error"><%= error %></div><% } %>
 
-      <form method="post" action="/sell" class="sell-form">
+      <form method="post" action="/sell" class="sell-form" enctype="multipart/form-data" data-sell-form>
         <input type="hidden" name="_csrf" value="<%= csrfToken %>">
         <div class="sell-form__row">
           <label>
@@ -33,7 +33,7 @@
             <input type="hidden" name="game_id" id="game_id" value="<%= selectedGame ? selectedGame.id : '' %>">
           </label>
           <label>Категория
-            <select name="category" required>
+            <select name="category" required data-sell-category>
               <option value="" disabled <%= !formValues.category ? 'selected' : '' %>>Выберите категорию</option>
               <% categories.forEach(function(c) { %>
                 <option value="<%= c.slug %>" <%= formValues.category === c.slug ? 'selected' : '' %>><%= c.icon %> <%= c.name %></option>
@@ -49,6 +49,16 @@
         <label>Описание
           <textarea name="description" maxlength="2000" rows="5" placeholder="Опишите товар: состояние, что входит, условия передачи..." required><%= formValues.description || '' %></textarea>
         </label>
+
+        <div class="sell-form__accounts-fields" data-sell-accounts-fields hidden>
+          <label>Сколько предметов/скинов на аккаунте
+            <input type="number" name="items_count" value="<%= formValues.items_count || '' %>" min="1" max="999" step="1" placeholder="Например, 47">
+          </label>
+          <label>Приметные названия (2-3 штуки, через запятую)
+            <input type="text" name="notable_items" value="<%= formValues.notable_items || '' %>" maxlength="300" placeholder="Например: Сирена, Ferrari, Джон Уик">
+          </label>
+          <p class="sell-form__hint">По этим названиям покупатели смогут найти аккаунт через общий поиск на сайте.</p>
+        </div>
 
         <div class="sell-form__row">
           <label>Редкость
@@ -66,11 +76,18 @@
           </label>
         </div>
 
+        <label>
+          Фото товара (до <%= maxImages %> шт., JPG/PNG/WEBP, каждое до 5 МБ)
+          <input type="file" name="images" accept="image/jpeg,image/png,image/webp" multiple data-sell-images>
+        </label>
+        <div class="sell-form__previews" data-sell-previews></div>
+
         <button type="submit" class="btn btn--accent btn--block btn--lg">Опубликовать объявление</button>
       </form>
     </div>
   </main>
 
   <%- include('partials/footer') %>
+  <script src="/public/js/sell-form.js" defer></script>
 </body>
 </html>

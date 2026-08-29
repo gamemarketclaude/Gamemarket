@@ -289,6 +289,7 @@ button, input, select, textarea { font-family: inherit; }
 .game-head__icon { font-size: 40px; }
 .game-head__title { font-family: var(--font-display); font-weight: 600; font-size: 26px; margin: 0; }
 .game-head__meta { color: var(--text-muted); font-size: 13px; margin-top: 2px; }
+.game-head__sell { margin-left: auto; }
 
 .game-tabs {
   display: flex;
@@ -453,6 +454,7 @@ button, input, select, textarea { font-family: inherit; }
 .card--legendary:hover { box-shadow: -3px 0 20px -6px var(--rarity-legendary); }
 
 .card__image { position: relative; aspect-ratio: 16/10.5; overflow: hidden; }
+.card__photo { width: 100%; height: 100%; object-fit: cover; }
 .card__rarity-tag {
   position: absolute;
   top: 10px;
@@ -484,8 +486,16 @@ button, input, select, textarea { font-family: inherit; }
   font-family: var(--font-display);
   font-size: 16px;
   font-weight: 600;
-  margin: 0 0 10px;
+  margin: 0 0 6px;
   line-height: 1.3;
+}
+.card__notable {
+  font-size: 11.5px;
+  color: var(--accent-strong);
+  margin: 0 0 8px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .card__seller {
   display: flex;
@@ -523,6 +533,59 @@ button, input, select, textarea { font-family: inherit; }
   border: 1px solid var(--border);
   aspect-ratio: 7/5;
 }
+
+.gallery { position: relative; width: 100%; height: 100%; }
+.gallery__slides { width: 100%; height: 100%; }
+.gallery__slide {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.2s ease;
+}
+.gallery__slide.is-active { opacity: 1; visibility: visible; }
+.gallery__arrow {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: rgba(18, 15, 11, 0.65);
+  color: var(--text);
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  backdrop-filter: blur(2px);
+}
+.gallery__arrow:hover { border-color: var(--accent); color: var(--accent-strong); }
+.gallery__arrow--prev { left: 12px; }
+.gallery__arrow--next { right: 12px; }
+.gallery__dots {
+  position: absolute;
+  bottom: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 6px;
+}
+.gallery__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(236, 228, 214, 0.35);
+  cursor: pointer;
+  padding: 0;
+}
+.gallery__dot.is-active { background: var(--accent-strong); }
 .product__title {
   font-family: var(--font-display);
   font-weight: 600;
@@ -530,6 +593,17 @@ button, input, select, textarea { font-family: inherit; }
   margin: 6px 0 14px;
 }
 .product__description { color: var(--text-muted); line-height: 1.6; margin-bottom: 22px; white-space: pre-line; }
+
+.product__attributes { margin-bottom: 16px; }
+.product__notable { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.chip {
+  font-size: 12px;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 4px 10px;
+  border-radius: 20px;
+}
 
 .product__seller-card {
   display: flex;
@@ -627,6 +701,30 @@ button, input, select, textarea { font-family: inherit; }
   grid-template-columns: 1fr 1fr;
   gap: 14px;
 }
+.sell-form__accounts-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  background: var(--panel-2);
+  border: 1px solid var(--accent-dim);
+  border-radius: 10px;
+  padding: 14px 16px;
+}
+.sell-form__hint { font-size: 12px; color: var(--text-muted); margin: 0; }
+.sell-form__previews {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.sell-form__preview {
+  width: 84px;
+  height: 84px;
+  margin: 0;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+}
+.sell-form__preview img { width: 100%; height: 100%; object-fit: cover; }
 .auth-form__checkbox {
   flex-direction: row !important;
   align-items: center;

@@ -17,7 +17,26 @@
 
     <div class="product">
       <div class="product__media">
-        <%- include('partials/art', { seed: product.image_seed, rarity: product.rarity, icon: product.category_icon }) %>
+        <% if (images.length) { %>
+          <div class="gallery" data-gallery>
+            <div class="gallery__slides">
+              <% images.forEach(function(file, i) { %>
+                <img src="/public/uploads/products/<%= file %>" alt="<%= product.title %>" class="gallery__slide <%= i === 0 ? 'is-active' : '' %>" data-gallery-slide>
+              <% }) %>
+            </div>
+            <% if (images.length > 1) { %>
+              <button type="button" class="gallery__arrow gallery__arrow--prev" data-gallery-prev aria-label="Предыдущее фото">‹</button>
+              <button type="button" class="gallery__arrow gallery__arrow--next" data-gallery-next aria-label="Следующее фото">›</button>
+              <div class="gallery__dots" data-gallery-dots>
+                <% images.forEach(function(file, i) { %>
+                  <button type="button" class="gallery__dot <%= i === 0 ? 'is-active' : '' %>" data-gallery-dot="<%= i %>" aria-label="Фото <%= i + 1 %>"></button>
+                <% }) %>
+              </div>
+            <% } %>
+          </div>
+        <% } else { %>
+          <%- include('partials/art', { seed: product.image_seed, rarity: product.rarity, icon: product.category_icon }) %>
+        <% } %>
         <span class="card__rarity-tag card__rarity-tag--<%= product.rarity %>">
           <%= ({common:'Обычное', rare:'Редкое', epic:'Эпическое', legendary:'Легендарное'})[product.rarity] %>
         </span>
@@ -27,6 +46,21 @@
         <a href="/game/<%= product.game_slug %>" class="card__eyebrow"><%= product.game_name_ru %></a>
         <h1 class="product__title"><%= product.title %></h1>
         <p class="product__description"><%= product.description %></p>
+
+        <% if (product.items_count || product.notable_items) { %>
+          <div class="product__attributes">
+            <% if (product.items_count) { %>
+              <span class="badge"><%= product.items_count %> предметов на аккаунте</span>
+            <% } %>
+            <% if (product.notable_items) { %>
+              <div class="product__notable">
+                <% product.notable_items.split(',').forEach(function(name) { %>
+                  <span class="chip"><%= name.trim() %></span>
+                <% }) %>
+              </div>
+            <% } %>
+          </div>
+        <% } %>
 
         <div class="product__seller-card">
           <div>
@@ -113,5 +147,6 @@
   </main>
 
   <%- include('partials/footer') %>
+  <script src="/public/js/gallery.js" defer></script>
 </body>
 </html>

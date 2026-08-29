@@ -193,6 +193,14 @@ function getSalesFeed() {
   return db.prepare('SELECT * FROM sales_feed ORDER BY minutes_ago ASC LIMIT 10').all();
 }
 
+function getGames() {
+  return db.prepare('SELECT * FROM games ORDER BY sort_order').all();
+}
+
+function getGameBySlug(slug) {
+  return db.prepare('SELECT * FROM games WHERE slug = ?').get(slug);
+}
+
 function establishSession(req, userId, remember) {
   return new Promise((resolve, reject) => {
     req.session.regenerate((err) => {
@@ -208,10 +216,12 @@ function establishSession(req, userId, remember) {
 
 const SELLER_JOIN = `
   SELECT p.*, c.name AS category_name, c.slug AS category_slug, c.icon AS category_icon,
+         g.slug AS game_slug, g.name_ru AS game_name_ru, g.name_en AS game_name_en, g.icon AS game_icon,
          u.display_name AS seller_name, u.username AS seller_username,
          u.rating AS seller_rating, u.deals_count AS seller_deals
   FROM products p
   JOIN categories c ON p.category_id = c.id
+  JOIN games g ON p.game_id = g.id
   JOIN users u ON p.seller_id = u.id
 `;
 
@@ -227,8 +237,9 @@ app.get('/', (req, res) => {
     params.push(category);
   }
   if (q) {
-    query += ' AND (p.title LIKE ? OR p.game_name LIKE ?)';
-    params.push(`%${q}%`, `%${q}%`);
+    query += ' AND (lower_ru(p.title) LIKE ? OR lower_ru(g.name_ru) LIKE ? OR lower_ru(g.name_en) LIKE ? OR g.aliases LIKE ?)';
+    const like = `%${q.toLowerCase()}%`;
+    params.push(like, like, like, like);
   }
   if (min && !Number.isNaN(Number(min))) {
     query += ' AND p.price >= ?';
@@ -252,12 +263,82 @@ app.get('/', (req, res) => {
   res.render('catalog', {
     products,
     categories: getCategories(),
+    games: getGames(),
     salesFeed: getSalesFeed(),
     activeCategory: category || '',
     activeSort: sort || '',
     q: q || '',
     min: min || '',
     max: max || '',
+    productCount: products.length,
+  });
+});
+
+// ---------- Автодополнение поиска по играм (RU/EN/синонимы) ----------
+// Фильтруем и ранжируем на JS-стороне: toLowerCase() в JS корректно
+// работает с кириллицей (в отличие от SQLite LIKE/lower() для не-ASCII),
+// а игр в каталоге мало — тянуть их все и сравнивать в памяти дёшево.
+app.get('/api/games/suggest', (req, res) => {
+  const raw = (req.query.q || '').toString().trim().toLowerCase().slice(0, 60);
+  if (!raw) return res.json([]);
+
+  const matches = getGames()
+    .map((g) => {
+      const nameRu = g.name_ru.toLowerCase();
+      const nameEn = g.name_en.toLowerCase();
+      const aliasList = g.aliases.split(',').map((a) => a.trim()).filter(Boolean);
+
+      let rank;
+      if (nameRu.startsWith(raw) || nameEn.startsWith(raw)) rank = 0;
+      else if (aliasList.some((a) => a.startsWith(raw))) rank = 1;
+      else if (nameRu.includes(raw) || nameEn.includes(raw) || aliasList.some((a) => a.includes(raw))) rank = 2;
+      else return null;
+
+      return { id: g.id, slug: g.slug, name_ru: g.name_ru, name_en: g.name_en, icon: g.icon, rank, sort_order: g.sort_order };
+    })
+    .filter(Boolean)
+    .sort((a, b) => a.rank - b.rank || a.sort_order - b.sort_order)
+    .slice(0, 8)
+    .map(({ id, slug, name_ru, name_en, icon }) => ({ id, slug, name_ru, name_en, icon }));
+
+  res.set('Cache-Control', 'no-store');
+  res.json(matches);
+});
+
+// ---------- Страница отдельной игры ----------
+app.get('/game/:slug', (req, res) => {
+  const game = getGameBySlug(req.params.slug);
+  if (!game) {
+    return res.status(404).render('not-found', { categories: getCategories() });
+  }
+
+  const categories = getCategories();
+  const section = categories.find((c) => c.slug === req.query.section) ? req.query.section : '';
+  const sort = req.query.sort || '';
+
+  let query = SELLER_JOIN + ' WHERE p.game_id = ?';
+  const params = [game.id];
+  if (section) {
+    query += ' AND c.slug = ?';
+    params.push(section);
+  }
+
+  const sortMap = {
+    price_asc: 'p.price ASC',
+    price_desc: 'p.price DESC',
+    rating: 'u.rating DESC',
+    newest: 'p.created_at DESC',
+  };
+  query += ' ORDER BY ' + (sortMap[sort] || 'p.created_at DESC');
+
+  const products = db.prepare(query).all(...params);
+
+  res.render('game', {
+    game,
+    categories,
+    products,
+    activeSection: section,
+    activeSort: sort,
     productCount: products.length,
   });
 });
@@ -270,20 +351,22 @@ app.get('/sell', requireAuth, (req, res) => {
     rarityLabels: RARITY_LABELS,
     error: null,
     formValues: {},
+    selectedGame: null,
   });
 });
 
 app.post('/sell', requireAuth, verifyCsrf, (req, res) => {
   const categories = getCategories();
+  const selectedGame = req.body.game_id ? db.prepare('SELECT * FROM games WHERE id = ?').get(Number(req.body.game_id)) : null;
   const fail = (message) => res.status(400).render('sell', {
     categories,
     rarities: RARITIES,
     rarityLabels: RARITY_LABELS,
     error: message,
     formValues: req.body,
+    selectedGame,
   });
 
-  const gameName = (req.body.game_name || '').trim();
   const title = (req.body.title || '').trim();
   const description = (req.body.description || '').trim();
   const categorySlug = (req.body.category || '').trim();
@@ -291,7 +374,7 @@ app.post('/sell', requireAuth, verifyCsrf, (req, res) => {
   const price = Number(req.body.price);
   const stock = Number(req.body.stock);
 
-  if (!gameName || gameName.length > 80) return fail('Укажите название игры (до 80 символов)');
+  if (!selectedGame) return fail('Выберите игру из списка подсказок');
   if (!title || title.length > 120) return fail('Укажите название товара (до 120 символов)');
   if (!description || description.length > 2000) return fail('Добавьте описание товара (до 2000 символов)');
 
@@ -304,12 +387,12 @@ app.post('/sell', requireAuth, verifyCsrf, (req, res) => {
   const imageSeed = crypto.randomBytes(6).toString('hex');
 
   const info = db.prepare(`
-    INSERT INTO products (category_id, seller_id, game_name, title, description, price, rarity, image_seed, stock)
-    VALUES (@category_id, @seller_id, @game_name, @title, @description, @price, @rarity, @image_seed, @stock)
+    INSERT INTO products (category_id, game_id, seller_id, title, description, price, rarity, image_seed, stock)
+    VALUES (@category_id, @game_id, @seller_id, @title, @description, @price, @rarity, @image_seed, @stock)
   `).run({
     category_id: category.id,
+    game_id: selectedGame.id,
     seller_id: req.session.userId,
-    game_name: gameName,
     title,
     description,
     price,

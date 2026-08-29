@@ -10,6 +10,7 @@
   <main class="layout layout--single">
     <div class="breadcrumbs">
       <a href="/">Каталог</a> /
+      <a href="/game/<%= product.game_slug %>"><%= product.game_name_ru %></a> /
       <a href="/?category=<%= product.category_slug %>"><%= product.category_name %></a> /
       <span><%= product.title %></span>
     </div>
@@ -23,7 +24,7 @@
       </div>
 
       <div class="product__info">
-        <span class="card__eyebrow"><%= product.game_name %></span>
+        <a href="/game/<%= product.game_slug %>" class="card__eyebrow"><%= product.game_name_ru %></a>
         <h1 class="product__title"><%= product.title %></h1>
         <p class="product__description"><%= product.description %></p>
 

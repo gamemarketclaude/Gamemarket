@@ -8,6 +8,17 @@
   <%- include('partials/header') %>
   <%- include('partials/ticker') %>
 
+  <section class="games-rail">
+    <div class="games-rail__row">
+      <% games.forEach(function(g) { %>
+        <a href="/game/<%= g.slug %>" class="games-rail__item">
+          <span class="games-rail__icon"><%= g.icon %></span>
+          <span class="games-rail__name"><%= g.name_ru %></span>
+        </a>
+      <% }) %>
+    </div>
+  </section>
+
   <main class="layout">
     <aside class="filters">
       <form method="get" action="/" class="filters__form">

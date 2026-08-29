@@ -17,8 +17,20 @@
       <form method="post" action="/sell" class="sell-form">
         <input type="hidden" name="_csrf" value="<%= csrfToken %>">
         <div class="sell-form__row">
-          <label>Игра
-            <input type="text" name="game_name" value="<%= formValues.game_name || '' %>" maxlength="80" placeholder="Например, Ashen Realms" required>
+          <label>
+            Игра
+            <div class="game-search" data-game-search-root data-game-search-mode="select" data-game-search-target="#game_id">
+              <input
+                type="text"
+                autocomplete="off"
+                placeholder="Начните вводить — например, «бр» или «cs»"
+                value="<%= selectedGame ? (selectedGame.name_ru + ' (' + selectedGame.name_en + ')') : '' %>"
+                data-game-search-input
+                required
+              >
+              <div class="game-search__dropdown" data-game-search-dropdown hidden></div>
+            </div>
+            <input type="hidden" name="game_id" id="game_id" value="<%= selectedGame ? selectedGame.id : '' %>">
           </label>
           <label>Категория
             <select name="category" required>

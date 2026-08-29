@@ -217,6 +217,110 @@ button, input, select, textarea { font-family: inherit; }
   .ticker__track { animation: none; }
 }
 
+/* Games rail (главная) */
+.games-rail {
+  border-bottom: 1px solid var(--border);
+  background: var(--panel);
+}
+.games-rail__row {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 14px 24px;
+  display: flex;
+  gap: 10px;
+  overflow-x: auto;
+}
+.games-rail__item {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  border-radius: 20px;
+  border: 1px solid var(--border);
+  background: var(--panel-2);
+  font-size: 13px;
+  white-space: nowrap;
+  transition: border-color 0.15s ease, color 0.15s ease;
+}
+.games-rail__item:hover { border-color: var(--accent-dim); color: var(--accent-strong); }
+.games-rail__icon { font-size: 15px; }
+
+/* Автодополнение по играм (шапка + форма объявления) */
+.game-search { position: relative; }
+.game-search__dropdown {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: 0 12px 28px -8px rgba(0, 0, 0, 0.5);
+  overflow: hidden;
+  z-index: 30;
+}
+.game-search__item {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  background: none;
+  border: none;
+  color: var(--text);
+  font-size: 13.5px;
+  text-align: left;
+  cursor: pointer;
+}
+.game-search__item:hover, .game-search__item.is-active { background: var(--panel-2); }
+.game-search__item-icon { font-size: 16px; flex-shrink: 0; }
+.game-search__item-name { font-weight: 600; }
+.game-search__item-en { color: var(--text-muted); font-size: 12px; margin-left: auto; }
+.sell-form .game-search__dropdown { font-family: var(--font-body); }
+
+/* Страница игры */
+.game-head {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 18px;
+}
+.game-head__icon { font-size: 40px; }
+.game-head__title { font-family: var(--font-display); font-weight: 600; font-size: 26px; margin: 0; }
+.game-head__meta { color: var(--text-muted); font-size: 13px; margin-top: 2px; }
+
+.game-tabs {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-bottom: 20px;
+}
+.game-tabs__item {
+  font-size: 13px;
+  color: var(--text-muted);
+  padding: 8px 14px;
+  border-radius: 20px;
+  border: 1px solid var(--border);
+  background: var(--panel);
+  white-space: nowrap;
+}
+.game-tabs__item:hover { color: var(--text); }
+.game-tabs__item.is-active {
+  background: var(--panel-2);
+  border-color: var(--accent-dim);
+  color: var(--accent-strong);
+}
+.game-sort { display: flex; gap: 8px; align-items: center; }
+.game-sort select {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 8px 10px;
+  border-radius: 7px;
+  font-size: 13px;
+}
+
 /* Layout */
 .layout {
   max-width: 1280px;

@@ -1,6 +1,4 @@
 const path = require('path');
-const fs = require('fs');
-const crypto = require('crypto');
 const Database = require('better-sqlite3');
 const bcrypt = require('bcryptjs');
 
@@ -219,16 +217,6 @@ const productDefs = [
     price: 6800, stock: 1,
     items_count: 47,
     notable_items: 'Сирена, Ferrari, Джон Уик',
-    photos: ['fortnite-1.png', 'fortnite-2.png', 'fortnite-3.png', 'fortnite-4.png'],
-  },
-  {
-    game: 'fortnite', category: 'accounts', seller: 'nightseller', rarity: 'epic',
-    title: 'Аккаунт Fortnite, коллекция сезонных скинов',
-    description: 'Собран за несколько сезонов, все паки куплены за реальные деньги. Смена почты после покупки.',
-    price: 3400, stock: 1,
-    items_count: 23,
-    notable_items: 'Мандо, Кальмар',
-    photos: ['fortnite2-1.png', 'fortnite2-2.png'],
   },
   {
     game: 'cs2', category: 'accounts', seller: 'vega_market', rarity: 'epic',
@@ -280,16 +268,6 @@ const insertProduct = db.prepare(`
   INSERT INTO products (category_id, game_id, seller_id, title, description, price, rarity, image_seed, stock, items_count, notable_items)
   VALUES (@category_id, @game_id, @seller_id, @title, @description, @price, @rarity, @image_seed, @stock, @items_count, @notable_items)
 `);
-const insertImage = db.prepare('INSERT INTO product_images (product_id, filename, position) VALUES (?, ?, ?)');
-
-// Пара примеров с фото — так видно, как выглядит объявление с загруженными
-// картинками, если склонировать проект и сразу его открыть. Исходники лежат
-// в db/seed-images/ (в git), при сидировании копируются в public/uploads/products
-// с обычным для загрузок случайным именем — по факту не отличаются от того,
-// что появится, если продавец сам прикрепит фото через форму.
-const SEED_IMAGES_DIR = path.join(__dirname, 'seed-images');
-const UPLOADS_DIR = path.join(__dirname, '..', 'public', 'uploads', 'products');
-fs.mkdirSync(UPLOADS_DIR, { recursive: true });
 
 const allProducts = [];
 let seedCounter = 1;
@@ -309,13 +287,6 @@ for (const def of productDefs) {
   };
   const info = insertProduct.run(row);
   allProducts.push({ id: info.lastInsertRowid, ...row });
-
-  (def.photos || []).forEach((sourceName, position) => {
-    const ext = path.extname(sourceName);
-    const destName = crypto.randomBytes(16).toString('hex') + ext;
-    fs.copyFileSync(path.join(SEED_IMAGES_DIR, sourceName), path.join(UPLOADS_DIR, destName));
-    insertImage.run(info.lastInsertRowid, destName, position);
-  });
 }
 
 // --- Лента продаж (демо-активность, не привязана к реальным заказам) ---

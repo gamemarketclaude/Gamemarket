@@ -50,6 +50,7 @@
             <span class="badge">Это ваш товар</span>
           <% } else { %>
             <form action="/product/<%= product.id %>/buy" method="post">
+              <input type="hidden" name="_csrf" value="<%= csrfToken %>">
               <button class="btn btn--accent btn--lg" type="submit">Купить сейчас</button>
             </form>
           <% } %>
@@ -89,6 +90,7 @@
 
       <% if (typeof currentUser !== 'undefined' && currentUser) { %>
         <form action="/product/<%= product.id %>/message" method="post" class="chat__form">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>">
           <textarea name="body" placeholder="Спросите продавца о товаре..." required maxlength="500"></textarea>
           <button type="submit" class="btn btn--accent">Отправить</button>
         </form>

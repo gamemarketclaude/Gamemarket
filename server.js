@@ -5,6 +5,10 @@ const express = require('express');
 const session = require('express-session');
 const bcrypt = require('bcryptjs');
 const path = require('path');
+const helmet = require('helmet');
+const cors = require('cors');
+const cookieParser = require('cookie-parser');
+const rateLimit = require('express-rate-limit');
 const db = require('./db');
 const SqliteSessionStore = require('./lib/sqliteSessionStore');
 const { checkMessage, checkPhoneSplitting, hasSuspiciousDigitRun } = require('./lib/messageFilter');
@@ -17,12 +21,43 @@ const isProduction = process.env.NODE_ENV === 'production';
 const RARITIES = ['common', 'rare', 'epic', 'legendary'];
 const RARITY_LABELS = { common: 'Обычное', rare: 'Редкое', epic: 'Эпическое', legendary: 'Легендарное' };
 const REMEMBER_ME_MS = 1000 * 60 * 60 * 24 * 30; // 30 дней
+const CSRF_COOKIE = 'gv.csrf';
 
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
 app.set('trust proxy', 1); // корректно определять https за прокси хостинга (для secure-cookie)
+
+// Скрываем подробности стека/движка от клиента и внешних сканеров
+app.disable('x-powered-by');
+
+// Базовые security-заголовки (CSP, X-Frame-Options, X-Content-Type-Options и т.п.)
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
+      fontSrc: ["'self'", 'https://fonts.gstatic.com'],
+      imgSrc: ["'self'", 'data:'],
+      scriptSrc: ["'self'"],
+      connectSrc: ["'self'"],
+      objectSrc: ["'none'"],
+      baseUri: ["'self'"],
+      frameAncestors: ["'none'"],
+      formAction: ["'self'"],
+    },
+  },
+  crossOriginEmbedderPolicy: false,
+}));
+
+// CORS: по умолчанию НЕ разрешаем ни один сторонний источник. Если фронтенд
+// когда-нибудь будет обращаться к этому серверу с другого домена, укажите
+// его явно через ALLOWED_ORIGIN — иначе кросс-доменные запросы браузер заблокирует.
+const allowedOrigin = process.env.ALLOWED_ORIGIN || false;
+app.use(cors({ origin: allowedOrigin, credentials: true }));
+
 app.use('/public', express.static(path.join(__dirname, 'public')));
-app.use(express.urlencoded({ extended: true }));
+app.use(express.urlencoded({ extended: true, limit: '100kb' }));
+app.use(cookieParser());
 
 let sessionSecret = process.env.SESSION_SECRET;
 if (!sessionSecret) {
@@ -47,6 +82,91 @@ app.use(session({
     // Продлевается до 30 дней при входе с отметкой "Запомнить меня".
   },
 }));
+
+// ---------- CSRF (double-submit cookie) ----------
+// Не завязано на express-session, поэтому работает и для форм входа/регистрации,
+// которые отправляются ещё до появления сессии у пользователя.
+app.use((req, res, next) => {
+  let token = req.cookies[CSRF_COOKIE];
+  if (!token || !/^[a-f0-9]{64}$/.test(token)) {
+    token = crypto.randomBytes(32).toString('hex');
+    res.cookie(CSRF_COOKIE, token, {
+      httpOnly: true,
+      secure: isProduction,
+      sameSite: 'lax',
+      maxAge: 1000 * 60 * 60 * 24 * 30,
+    });
+  }
+  res.locals.csrfToken = token;
+  next();
+});
+
+function verifyCsrf(req, res, next) {
+  const cookieToken = req.cookies[CSRF_COOKIE];
+  const sentToken = req.body ? req.body._csrf : null;
+  const cookieBuf = Buffer.from(String(cookieToken || ''));
+  const sentBuf = Buffer.from(String(sentToken || ''));
+  const valid = cookieToken && sentToken
+    && cookieBuf.length === sentBuf.length
+    && crypto.timingSafeEqual(cookieBuf, sentBuf);
+  if (!valid) {
+    return res.status(403).send('Запрос отклонён: недействительный или истёкший CSRF-токен. Обновите страницу и попробуйте снова.');
+  }
+  next();
+}
+
+// ---------- Rate limiting ----------
+// Отдельные лимитеры для входа и регистрации, чтобы подбор пароля к одному
+// аккаунту не расходовал лимит для регистрации новых, и наоборот.
+const loginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  handler: (req, res) => {
+    const next = (req.body && req.body.next && req.body.next.startsWith('/') && !req.body.next.startsWith('//')) ? req.body.next : '/profile';
+    res.status(429).render('login', {
+      categories: getCategories(),
+      error: 'Слишком много попыток входа. Подождите несколько минут и попробуйте снова.',
+      next,
+    });
+  },
+});
+
+const registerLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  limit: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  handler: (req, res) => {
+    res.status(429).render('register', {
+      categories: getCategories(),
+      error: 'Слишком много регистраций с вашего адреса. Попробуйте позже.',
+      formValues: {},
+    });
+  },
+});
+
+// Отдельный лимитер для чата: этот эндпоинт может вызывать платный запрос
+// к Anthropic API, поэтому ограничиваем его строже, чем обычные действия.
+const messageLimiter = rateLimit({
+  windowMs: 5 * 60 * 1000,
+  limit: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  handler: (req, res) => {
+    res.redirect(429, `/product/${req.params.id}?chatError=` + encodeURIComponent('Слишком много сообщений подряд. Подождите немного.') + '#chat');
+  },
+});
+
+function asyncHandler(fn) {
+  return (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
+}
+
+function parsePositiveInt(value) {
+  const n = Number(value);
+  return Number.isInteger(n) && n > 0 ? n : null;
+}
 
 // Подгружаем текущего пользователя во все шаблоны
 app.use((req, res, next) => {
@@ -153,7 +273,7 @@ app.get('/sell', requireAuth, (req, res) => {
   });
 });
 
-app.post('/sell', requireAuth, (req, res) => {
+app.post('/sell', requireAuth, verifyCsrf, (req, res) => {
   const categories = getCategories();
   const fail = (message) => res.status(400).render('sell', {
     categories,
@@ -203,7 +323,11 @@ app.post('/sell', requireAuth, (req, res) => {
 
 // ---------- Карточка товара ----------
 app.get('/product/:id', (req, res) => {
-  const product = db.prepare(SELLER_JOIN + ' WHERE p.id = ?').get(req.params.id);
+  const productId = parsePositiveInt(req.params.id);
+  if (!productId) {
+    return res.status(404).render('not-found', { categories: getCategories() });
+  }
+  const product = db.prepare(SELLER_JOIN + ' WHERE p.id = ?').get(productId);
 
   if (!product) {
     return res.status(404).render('not-found', { categories: getCategories() });
@@ -232,8 +356,12 @@ app.get('/product/:id', (req, res) => {
 });
 
 // ---------- Сообщение в чате товара ----------
-app.post('/product/:id/message', requireAuth, async (req, res) => {
-  const product = db.prepare('SELECT id FROM products WHERE id = ?').get(req.params.id);
+app.post('/product/:id/message', requireAuth, messageLimiter, verifyCsrf, asyncHandler(async (req, res) => {
+  const productId = parsePositiveInt(req.params.id);
+  if (!productId) {
+    return res.status(404).render('not-found', { categories: getCategories() });
+  }
+  const product = db.prepare('SELECT id FROM products WHERE id = ?').get(productId);
   if (!product) {
     return res.status(404).render('not-found', { categories: getCategories() });
   }
@@ -283,11 +411,15 @@ app.post('/product/:id/message', requireAuth, async (req, res) => {
   `).run(product.id, req.session.userId, bodyText);
 
   res.redirect(`/product/${product.id}#chat`);
-});
+}));
 
 // ---------- Покупка ----------
-app.post('/product/:id/buy', requireAuth, (req, res) => {
-  const product = db.prepare('SELECT * FROM products WHERE id = ?').get(req.params.id);
+app.post('/product/:id/buy', requireAuth, verifyCsrf, (req, res) => {
+  const productId = parsePositiveInt(req.params.id);
+  if (!productId) {
+    return res.status(404).render('not-found', { categories: getCategories() });
+  }
+  const product = db.prepare('SELECT * FROM products WHERE id = ?').get(productId);
   if (!product) {
     return res.status(404).render('not-found', { categories: getCategories() });
   }
@@ -325,7 +457,7 @@ app.get('/register', (req, res) => {
   res.render('register', { categories: getCategories(), error: null, formValues: {} });
 });
 
-app.post('/register', async (req, res) => {
+app.post('/register', registerLimiter, verifyCsrf, asyncHandler(async (req, res) => {
   const { username, display_name, password, password_confirm } = req.body;
   const remember = req.body.remember === 'on';
 
@@ -351,7 +483,7 @@ app.post('/register', async (req, res) => {
 
   await establishSession(req, info.lastInsertRowid, remember);
   res.redirect('/profile');
-});
+}));
 
 // ---------- Вход ----------
 app.get('/login', (req, res) => {
@@ -359,10 +491,11 @@ app.get('/login', (req, res) => {
   res.render('login', { categories: getCategories(), error: null, next: req.query.next || '/profile' });
 });
 
-app.post('/login', async (req, res) => {
+app.post('/login', loginLimiter, verifyCsrf, asyncHandler(async (req, res) => {
   const { username, password } = req.body;
   const remember = req.body.remember === 'on';
-  const next = (req.body.next && req.body.next.startsWith('/')) ? req.body.next : '/profile';
+  // startsWith('//') отсекает protocol-relative open redirect (напр. next=//evil.example)
+  const next = (req.body.next && req.body.next.startsWith('/') && !req.body.next.startsWith('//')) ? req.body.next : '/profile';
   const user = db.prepare('SELECT * FROM users WHERE username = ?').get((username || '').toLowerCase());
 
   const valid = user ? await bcrypt.compare(password || '', user.password_hash) : false;
@@ -372,10 +505,10 @@ app.post('/login', async (req, res) => {
 
   await establishSession(req, user.id, remember);
   res.redirect(next);
-});
+}));
 
 // ---------- Выход ----------
-app.post('/logout', (req, res) => {
+app.post('/logout', verifyCsrf, (req, res) => {
   req.session.destroy(() => {
     res.clearCookie('gv.sid');
     res.redirect('/');
@@ -419,6 +552,20 @@ app.get('/profile', requireAuth, (req, res) => {
 
 app.use((req, res) => {
   res.status(404).render('not-found', { categories: getCategories() });
+});
+
+// Единый обработчик ошибок: клиенту — только общее сообщение (никаких стеков
+// и деталей исключения в production), полный текст — только в серверный лог.
+// eslint-disable-next-line no-unused-vars
+app.use((err, req, res, next) => {
+  console.error('[gearvault] Необработанная ошибка на', req.method, req.path, ':', err && err.stack ? err.stack : err);
+  if (res.headersSent) return next(err);
+  res.status(500);
+  if (isProduction) {
+    res.render('error', { categories: getCategories() });
+  } else {
+    res.type('text/plain').send(`Ошибка сервера: ${err && err.message ? err.message : String(err)}`);
+  }
 });
 
 app.listen(PORT, () => {

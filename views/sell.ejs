@@ -15,6 +15,7 @@
       <% if (error) { %><div class="form-error"><%= error %></div><% } %>
 
       <form method="post" action="/sell" class="sell-form">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
         <div class="sell-form__row">
           <label>Игра
             <input type="text" name="game_name" value="<%= formValues.game_name || '' %>" maxlength="80" placeholder="Например, Ashen Realms" required>

@@ -261,7 +261,7 @@ const SELLER_JOIN = `
 
 // ---------- Каталог ----------
 app.get('/', (req, res) => {
-  const { category, sort, q, min, max } = req.query;
+  const { category, sort, q, min, max, items_min, items_max, desc } = req.query;
 
   let query = SELLER_JOIN + ' WHERE 1=1';
   const params = [];
@@ -282,6 +282,19 @@ app.get('/', (req, res) => {
   if (max && !Number.isNaN(Number(max))) {
     query += ' AND p.price <= ?';
     params.push(Number(max));
+  }
+  if (items_min && !Number.isNaN(Number(items_min))) {
+    query += ' AND p.items_count >= ?';
+    params.push(Number(items_min));
+  }
+  if (items_max && !Number.isNaN(Number(items_max))) {
+    query += ' AND p.items_count <= ?';
+    params.push(Number(items_max));
+  }
+  if (desc) {
+    // Поиск подстроки прямо в описании — «fer» найдёт «Ferrari» в любом месте текста.
+    query += ' AND lower_ru(p.description) LIKE ?';
+    params.push(`%${desc.toLowerCase().slice(0, 100)}%`);
   }
 
   const sortMap = {
@@ -304,6 +317,9 @@ app.get('/', (req, res) => {
     q: q || '',
     min: min || '',
     max: max || '',
+    itemsMin: items_min || '',
+    itemsMax: items_max || '',
+    descQuery: desc || '',
     productCount: products.length,
   });
 });

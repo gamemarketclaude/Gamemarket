@@ -45,6 +45,19 @@
         </div>
 
         <div class="filters__group">
+          <label>Количество скинов/предметов</label>
+          <div class="filters__price-row">
+            <input type="number" name="items_min" placeholder="от" min="0" value="<%= itemsMin %>">
+            <input type="number" name="items_max" placeholder="до" min="0" value="<%= itemsMax %>">
+          </div>
+        </div>
+
+        <div class="filters__group">
+          <label for="desc">Поиск по описанию</label>
+          <input type="text" name="desc" id="desc" placeholder="Например, fer" maxlength="100" value="<%= descQuery %>">
+        </div>
+
+        <div class="filters__group">
           <label for="sort">Сортировка</label>
           <select name="sort" id="sort">
             <option value="newest" <%= activeSort === 'newest' ? 'selected' : '' %>>Сначала новые</option>

@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <title><%= product.title %> — GearVault</title>
+  <%- include('partials/head') %>
+</head>
+<body>
+  <%- include('partials/header') %>
+
+  <main class="layout layout--single">
+    <div class="breadcrumbs">
+      <a href="/">Каталог</a> /
+      <a href="/?category=<%= product.category_slug %>"><%= product.category_name %></a> /
+      <span><%= product.title %></span>
+    </div>
+
+    <div class="product">
+      <div class="product__media">
+        <%- include('partials/art', { seed: product.image_seed, rarity: product.rarity, icon: product.category_icon }) %>
+        <span class="card__rarity-tag card__rarity-tag--<%= product.rarity %>">
+          <%= ({common:'Обычное', rare:'Редкое', epic:'Эпическое', legendary:'Легендарное'})[product.rarity] %>
+        </span>
+      </div>
+
+      <div class="product__info">
+        <span class="card__eyebrow"><%= product.game_name %></span>
+        <h1 class="product__title"><%= product.title %></h1>
+        <p class="product__description"><%= product.description %></p>
+
+        <div class="product__seller-card">
+          <div>
+            <div class="product__seller-name"><%= product.seller_name %></div>
+            <div class="product__seller-meta">★ <%= product.seller_rating %> · <%= product.seller_deals %> завершённых сделок</div>
+          </div>
+          <span class="badge">На сделке > 30 дней</span>
+        </div>
+
+        <% if (typeof error !== 'undefined' && error) { %>
+          <div class="form-error" style="margin-bottom:14px;"><%= error %></div>
+        <% } %>
+
+        <div class="product__buy-box">
+          <div>
+            <div class="product__price mono"><%= product.price %> ₽</div>
+            <div class="product__stock"><%= product.stock %> шт. в наличии</div>
+          </div>
+          <% if (product.stock < 1) { %>
+            <button class="btn btn--ghost btn--lg" type="button" disabled>Раскуплено</button>
+          <% } else if (typeof currentUser !== 'undefined' && currentUser && currentUser.id === product.seller_id) { %>
+            <span class="badge">Это ваш товар</span>
+          <% } else { %>
+            <form action="/product/<%= product.id %>/buy" method="post">
+              <button class="btn btn--accent btn--lg" type="submit">Купить сейчас</button>
+            </form>
+          <% } %>
+        </div>
+
+        <ul class="product__trust">
+          <li>Безопасная сделка — деньги у площадки до подтверждения получения</li>
+          <li>Поддержка на связи 24/7 при спорных ситуациях</li>
+          <li>Возврат средств, если товар не соответствует описанию</li>
+        </ul>
+      </div>
+    </div>
+
+    <section class="chat" id="chat">
+      <h2>Вопросы по товару</h2>
+      <p class="chat__rule">Общение только внутри площадки — ссылки, контакты и упоминания других сайтов автоматически блокируются.</p>
+
+      <div class="chat__messages">
+        <% if (messages.length === 0) { %>
+          <p class="chat__empty">Пока никто не задавал вопросов. Будьте первым.</p>
+        <% } else { %>
+          <% messages.forEach(function(m) { %>
+            <div class="chat__message <%= (typeof currentUser !== 'undefined' && currentUser && currentUser.id === m.sender_id) ? 'chat__message--own' : '' %>">
+              <div class="chat__message-head">
+                <span class="chat__message-author"><%= m.sender_name %></span>
+                <span class="chat__message-time"><%= m.created_at %></span>
+              </div>
+              <p class="chat__message-body"><%= m.body %></p>
+            </div>
+          <% }) %>
+        <% } %>
+      </div>
+
+      <% if (chatError) { %>
+        <div class="form-error"><%= chatError %></div>
+      <% } %>
+
+      <% if (typeof currentUser !== 'undefined' && currentUser) { %>
+        <form action="/product/<%= product.id %>/message" method="post" class="chat__form">
+          <textarea name="body" placeholder="Спросите продавца о товаре..." required maxlength="500"></textarea>
+          <button type="submit" class="btn btn--accent">Отправить</button>
+        </form>
+      <% } else { %>
+        <p class="chat__login-hint"><a href="/login?next=<%= encodeURIComponent('/product/' + product.id + '#chat') %>">Войдите</a>, чтобы задать вопрос продавцу.</p>
+      <% } %>
+    </section>
+
+    <% if (similar.length) { %>
+      <section class="similar">
+        <h2>Похожие предложения</h2>
+        <div class="grid">
+          <% similar.forEach(function(p) { %>
+            <%- include('partials/card', { p: p }) %>
+          <% }) %>
+        </div>
+      </section>
+    <% } %>
+  </main>
+
+  <%- include('partials/footer') %>
+</body>
+</html>

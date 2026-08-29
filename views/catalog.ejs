@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <title>GearVault — маркетплейс игровых ценностей</title>
+  <%- include('partials/head') %>
+</head>
+<body>
+  <%- include('partials/header') %>
+  <%- include('partials/ticker') %>
+
+  <main class="layout">
+    <aside class="filters">
+      <form method="get" action="/" class="filters__form">
+        <% if (q) { %><input type="hidden" name="q" value="<%= q %>"><% } %>
+
+        <h2 class="filters__title">Фильтры</h2>
+
+        <div class="filters__group">
+          <label>Категория</label>
+          <select name="category">
+            <option value="">Все категории</option>
+            <% categories.forEach(function(c) { %>
+              <option value="<%= c.slug %>" <%= activeCategory === c.slug ? 'selected' : '' %>><%= c.icon %> <%= c.name %></option>
+            <% }) %>
+          </select>
+        </div>
+
+        <div class="filters__group">
+          <label>Цена, ₽</label>
+          <div class="filters__price-row">
+            <input type="number" name="min" placeholder="от" min="0" value="<%= min %>">
+            <input type="number" name="max" placeholder="до" min="0" value="<%= max %>">
+          </div>
+        </div>
+
+        <div class="filters__group">
+          <label for="sort">Сортировка</label>
+          <select name="sort" id="sort">
+            <option value="newest" <%= activeSort === 'newest' ? 'selected' : '' %>>Сначала новые</option>
+            <option value="price_asc" <%= activeSort === 'price_asc' ? 'selected' : '' %>>Цена: по возрастанию</option>
+            <option value="price_desc" <%= activeSort === 'price_desc' ? 'selected' : '' %>>Цена: по убыванию</option>
+            <option value="rating" <%= activeSort === 'rating' ? 'selected' : '' %>>Рейтинг продавца</option>
+          </select>
+        </div>
+
+        <button type="submit" class="btn btn--accent btn--block">Применить</button>
+        <a href="/" class="filters__reset">Сбросить всё</a>
+      </form>
+    </aside>
+
+    <section class="results">
+      <div class="results__head">
+        <h1>
+          <% if (activeCategory) { %>
+            <%= categories.find(c => c.slug === activeCategory).name %>
+          <% } else { %>
+            Все категории
+          <% } %>
+        </h1>
+        <span class="results__count"><%= productCount %> предложений</span>
+      </div>
+
+      <% if (products.length === 0) { %>
+        <div class="empty-state">
+          <%- include('partials/art', { seed: 'empty', rarity: 'common', icon: '' }) %>
+          <p>По вашему запросу ничего не найдено.</p>
+          <p class="empty-state__hint">Попробуйте изменить фильтры или сбросить цену.</p>
+        </div>
+      <% } else { %>
+        <div class="grid">
+          <% products.forEach(function(p) { %>
+            <%- include('partials/card', { p: p }) %>
+          <% }) %>
+        </div>
+      <% } %>
+    </section>
+  </main>
+
+  <%- include('partials/footer') %>
+</body>
+</html>

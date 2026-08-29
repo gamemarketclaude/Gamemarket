@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <title>Вход — GearVault</title>
+  <%- include('partials/head') %>
+</head>
+<body>
+  <%- include('partials/header') %>
+
+  <main class="layout layout--single">
+    <div class="auth-card">
+      <h1 class="auth-card__title">Вход в аккаунт</h1>
+
+      <% if (error) { %><div class="form-error"><%= error %></div><% } %>
+
+      <form method="post" action="/login" class="auth-form">
+        <input type="hidden" name="next" value="<%= next %>">
+        <label>Логин
+          <input type="text" name="username" autocomplete="username" required autofocus>
+        </label>
+        <label>Пароль
+          <input type="password" name="password" autocomplete="current-password" required>
+        </label>
+        <label class="auth-form__checkbox">
+          <input type="checkbox" name="remember" checked>
+          Запомнить меня на этом устройстве
+        </label>
+        <button type="submit" class="btn btn--accent btn--block btn--lg">Войти</button>
+      </form>
+
+      <p class="auth-card__hint">
+        Демо-аккаунт: <span class="mono">demo</span> / <span class="mono">password123</span>
+      </p>
+      <p class="auth-card__switch">Нет аккаунта? <a href="/register">Зарегистрироваться</a></p>
+    </div>
+  </main>
+
+  <%- include('partials/footer') %>
+</body>
+</html>

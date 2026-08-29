@@ -1,0 +1,21 @@
+<a href="/product/<%= p.id %>" class="card card--<%= p.rarity %>">
+  <div class="card__image">
+    <%- include('art', { seed: p.image_seed, rarity: p.rarity, icon: p.category_icon }) %>
+    <span class="card__rarity-tag card__rarity-tag--<%= p.rarity %>">
+      <%= ({common:'Обычное', rare:'Редкое', epic:'Эпическое', legendary:'Легендарное'})[p.rarity] %>
+    </span>
+  </div>
+  <div class="card__body">
+    <span class="card__eyebrow"><%= p.game_name %></span>
+    <h3 class="card__title"><%= p.title %></h3>
+    <div class="card__seller">
+      <span class="card__seller-name"><%= p.seller_name %></span>
+      <span class="card__rating">★ <%= p.seller_rating %></span>
+      <span class="card__deals"><%= p.seller_deals %> сделок</span>
+    </div>
+  </div>
+  <div class="card__footer">
+    <span class="card__stock"><%= p.stock %> шт. в наличии</span>
+    <span class="card__price mono"><%= p.price %> ₽</span>
+  </div>
+</a>

@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <title>Выставить товар — GearVault</title>
+  <%- include('partials/head') %>
+</head>
+<body>
+  <%- include('partials/header') %>
+
+  <main class="layout layout--single">
+    <div class="sell-card">
+      <h1 class="auth-card__title">Выставить товар на продажу</h1>
+      <p class="sell-card__hint">Объявление появится в общем каталоге сразу после публикации.</p>
+
+      <% if (error) { %><div class="form-error"><%= error %></div><% } %>
+
+      <form method="post" action="/sell" class="sell-form">
+        <div class="sell-form__row">
+          <label>Игра
+            <input type="text" name="game_name" value="<%= formValues.game_name || '' %>" maxlength="80" placeholder="Например, Ashen Realms" required>
+          </label>
+          <label>Категория
+            <select name="category" required>
+              <option value="" disabled <%= !formValues.category ? 'selected' : '' %>>Выберите категорию</option>
+              <% categories.forEach(function(c) { %>
+                <option value="<%= c.slug %>" <%= formValues.category === c.slug ? 'selected' : '' %>><%= c.icon %> <%= c.name %></option>
+              <% }) %>
+            </select>
+          </label>
+        </div>
+
+        <label>Название товара
+          <input type="text" name="title" value="<%= formValues.title || '' %>" maxlength="120" placeholder="Например, «Аккаунт 4 сезона, топ-500»" required>
+        </label>
+
+        <label>Описание
+          <textarea name="description" maxlength="2000" rows="5" placeholder="Опишите товар: состояние, что входит, условия передачи..." required><%= formValues.description || '' %></textarea>
+        </label>
+
+        <div class="sell-form__row">
+          <label>Редкость
+            <select name="rarity">
+              <% rarities.forEach(function(r) { %>
+                <option value="<%= r %>" <%= formValues.rarity === r ? 'selected' : '' %>><%= rarityLabels[r] %></option>
+              <% }) %>
+            </select>
+          </label>
+          <label>Цена, ₽
+            <input type="number" name="price" value="<%= formValues.price || '' %>" min="1" max="10000000" step="1" required>
+          </label>
+          <label>Количество
+            <input type="number" name="stock" value="<%= formValues.stock || 1 %>" min="1" max="9999" step="1" required>
+          </label>
+        </div>
+
+        <button type="submit" class="btn btn--accent btn--block btn--lg">Опубликовать объявление</button>
+      </form>
+    </div>
+  </main>
+
+  <%- include('partials/footer') %>
+</body>
+</html>

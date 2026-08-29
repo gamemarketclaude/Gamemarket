@@ -1,0 +1,57 @@
+<% const _activeCategory = typeof activeCategory !== 'undefined' ? activeCategory : ''; %>
+<header class="site-header">
+  <div class="site-header__row">
+    <a href="/" class="logo">
+      <span class="logo__mark" aria-hidden="true">
+        <svg viewBox="0 0 40 40" width="30" height="30">
+          <circle cx="20" cy="20" r="18.5" fill="none" stroke="currentColor" stroke-width="1.3" opacity="0.9"/>
+          <circle cx="20" cy="20" r="12.5" fill="none" stroke="currentColor" stroke-width="1.3" opacity="0.6"/>
+          <circle cx="20" cy="20" r="6.5" fill="none" stroke="currentColor" stroke-width="1.3" opacity="0.4"/>
+          <circle cx="20" cy="20" r="2.2" fill="currentColor"/>
+        </svg>
+      </span>
+      <span class="logo__word">GearVault</span>
+    </a>
+
+    <form class="search" action="/" method="get">
+      <% if (typeof activeCategory !== 'undefined' && activeCategory) { %>
+        <input type="hidden" name="category" value="<%= activeCategory %>">
+      <% } %>
+      <input
+        type="text"
+        name="q"
+        placeholder="Найти предмет, аккаунт или игру..."
+        value="<%= typeof q !== 'undefined' ? q : '' %>"
+        autocomplete="off"
+      >
+      <button type="submit" aria-label="Искать">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><circle cx="11" cy="11" r="7" stroke="currentColor" stroke-width="2"/><path d="M21 21l-4.3-4.3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+      </button>
+    </form>
+
+    <div class="header-actions">
+      <% if (typeof currentUser !== 'undefined' && currentUser) { %>
+        <a href="/sell" class="btn btn--accent">Выставить товар</a>
+        <a href="/profile" class="btn btn--ghost btn--user">
+          <span class="avatar-chip"><%= currentUser.display_name.charAt(0).toUpperCase() %></span>
+          <%= currentUser.display_name %>
+        </a>
+        <form action="/logout" method="post" style="margin:0;">
+          <button type="submit" class="btn btn--ghost">Выйти</button>
+        </form>
+      <% } else { %>
+        <a href="/register" class="btn btn--ghost">Регистрация</a>
+        <a href="/login" class="btn btn--accent">Войти</a>
+      <% } %>
+    </div>
+  </div>
+
+  <nav class="cat-nav">
+    <a href="/" class="cat-nav__item <%= !_activeCategory ? 'is-active' : '' %>">Все категории</a>
+    <% categories.forEach(function(c) { %>
+      <a href="/?category=<%= c.slug %>" class="cat-nav__item <%= _activeCategory === c.slug ? 'is-active' : '' %>">
+        <span class="cat-nav__icon"><%= c.icon %></span><%= c.name %>
+      </a>
+    <% }) %>
+  </nav>
+</header>

@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <title>Регистрация — GearVault</title>
+  <%- include('partials/head') %>
+</head>
+<body>
+  <%- include('partials/header') %>
+
+  <main class="layout layout--single">
+    <div class="auth-card">
+      <h1 class="auth-card__title">Создать аккаунт</h1>
+
+      <% if (error) { %><div class="form-error"><%= error %></div><% } %>
+
+      <form method="post" action="/register" class="auth-form">
+        <label>Отображаемое имя
+          <input type="text" name="display_name" value="<%= formValues.display_name || '' %>" maxlength="40" required autofocus>
+        </label>
+        <label>Логин
+          <input type="text" name="username" value="<%= formValues.username || '' %>" pattern="[a-zA-Z0-9_]{3,20}" title="3–20 символов: латиница, цифры, подчёркивание" required>
+        </label>
+        <label>Пароль
+          <input type="password" name="password" minlength="6" required>
+        </label>
+        <label>Повторите пароль
+          <input type="password" name="password_confirm" minlength="6" required>
+        </label>
+        <label class="auth-form__checkbox">
+          <input type="checkbox" name="remember" checked>
+          Запомнить меня на этом устройстве
+        </label>
+        <button type="submit" class="btn btn--accent btn--block btn--lg">Зарегистрироваться</button>
+      </form>
+
+      <p class="auth-card__switch">Уже есть аккаунт? <a href="/login">Войти</a></p>
+    </div>
+  </main>
+
+  <%- include('partials/footer') %>
+</body>
+</html>

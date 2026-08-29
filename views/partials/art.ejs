@@ -1,0 +1,17 @@
+<%
+/* Ожидает: seed (строка), rarity ('common'|'rare'|'epic'|'legendary'), icon (эмодзи, опционально) */
+const _seed = typeof seed !== 'undefined' && seed ? String(seed) : 'gv';
+const _rarity = typeof rarity !== 'undefined' && rarity ? rarity : 'common';
+const _icon = typeof icon !== 'undefined' && icon ? icon : '◆';
+let _hash = 0;
+for (let i = 0; i < _seed.length; i++) { _hash = (_hash * 31 + _seed.charCodeAt(i)) >>> 0; }
+const _hue = _hash % 360;
+%>
+<div class="art art--<%= _rarity %>" style="--art-hue: <%= _hue %>deg;">
+  <svg class="art__rings" viewBox="0 0 100 100" aria-hidden="true">
+    <circle cx="50" cy="50" r="46" fill="none" stroke="currentColor" stroke-width="1"/>
+    <circle cx="50" cy="50" r="33" fill="none" stroke="currentColor" stroke-width="1"/>
+    <circle cx="50" cy="50" r="20" fill="none" stroke="currentColor" stroke-width="1"/>
+  </svg>
+  <span class="art__icon"><%= _icon %></span>
+</div>

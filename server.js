@@ -946,8 +946,25 @@ app.use((err, req, res, next) => {
   }
 });
 
+// Адреса этого компьютера в домашней сети — по ним сайт можно открыть
+// с телефона, подключённого к тому же Wi-Fi.
+function localNetworkAddresses() {
+  const os = require('os');
+  return Object.values(os.networkInterfaces())
+    .flat()
+    .filter((i) => i && i.family === 'IPv4' && !i.internal)
+    .map((i) => i.address);
+}
+
 const server = app.listen(PORT, () => {
   console.log(`GearVault запущен: http://localhost:${PORT}`);
+  if (!isProduction) {
+    const addresses = localNetworkAddresses();
+    if (addresses.length) {
+      console.log('С телефона (он должен быть подключён к тому же Wi-Fi) откройте в браузере:');
+      addresses.forEach((a) => console.log(`  http://${a}:${PORT}`));
+    }
+  }
 });
 
 server.on('error', (err) => {

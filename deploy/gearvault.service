@@ -7,7 +7,7 @@ Type=simple
 User=gearvault
 Group=gearvault
 WorkingDirectory=/opt/gearvault
-ExecStart=/usr/bin/node server.js
+ExecStart=/usr/bin/node --disable-warning=ExperimentalWarning server.js
 Restart=on-failure
 RestartSec=5
 EnvironmentFile=/opt/gearvault/.env

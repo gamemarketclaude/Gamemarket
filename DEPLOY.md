@@ -36,9 +36,9 @@ ufw --force enable
 ## 2. Node.js
 
 ```bash
-curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
+curl -fsSL https://deb.nodesource.com/setup_24.x | bash -
 apt install -y nodejs
-node -v   # должно показать v20.x
+node -v   # должно показать v24.x (нужен 22.13+ — в нём есть встроенный SQLite)
 ```
 
 ## 3. Код приложения
@@ -77,7 +77,7 @@ cp .env.example .env
 ## 5. Первый запуск и наполнение базы
 
 ```bash
-node db/init.js   # создаёт database.sqlite и заполняет демо-данными
+npm run seed   # создаёт database.sqlite и заполняет демо-данными
 ```
 
 ## 6. Автозапуск через systemd

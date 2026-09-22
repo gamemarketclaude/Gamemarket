@@ -33,13 +33,13 @@
 
     <div class="header-actions">
       <% if (typeof currentUser !== 'undefined' && currentUser) { %>
-        <a href="/sell" class="btn btn--accent">Выставить товар</a>
-        <% if (currentUser.isAdmin) { %><a href="/admin/users" class="btn btn--ghost">Админка</a><% } %>
+        <a href="/sell" class="btn btn--accent"><span class="hide-mobile">Выставить товар</span><span class="show-mobile">+ Продать</span></a>
+        <% if (currentUser.isAdmin) { %><a href="/admin/users" class="btn btn--ghost" title="Админка"><span class="hide-mobile">Админка</span><span class="show-mobile" aria-label="Админка">⚙</span></a><% } %>
         <a href="/profile" class="btn btn--ghost btn--user">
           <span class="avatar-chip"><%= currentUser.display_name.charAt(0).toUpperCase() %></span>
-          <%= currentUser.display_name %>
+          <span class="hide-mobile"><%= currentUser.display_name %></span>
         </a>
-        <form action="/logout" method="post" style="margin:0;">
+        <form action="/logout" method="post" class="header-logout" style="margin:0;">
           <input type="hidden" name="_csrf" value="<%= csrfToken %>">
           <button type="submit" class="btn btn--ghost">Выйти</button>
         </form>

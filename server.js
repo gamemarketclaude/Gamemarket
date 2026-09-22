@@ -99,6 +99,13 @@ app.use(helmet({
       baseUri: ["'self'"],
       frameAncestors: ["'none'"],
       formAction: ["'self'"],
+      // helmet по умолчанию добавляет upgrade-insecure-requests: браузер
+      // переписывает адреса стилей/скриптов на https://. Когда сайт открыт
+      // по http (с телефона по адресу компьютера в Wi-Fi или на сервере без
+      // SSL), https там нет — и страница остаётся без оформления и JS.
+      // Все ресурсы у нас относительные, поэтому на HTTPS-сайте они и так
+      // грузятся по https, эта директива не нужна.
+      upgradeInsecureRequests: null,
     },
   },
   crossOriginEmbedderPolicy: false,

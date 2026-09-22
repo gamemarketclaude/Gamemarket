@@ -34,6 +34,7 @@
     <div class="header-actions">
       <% if (typeof currentUser !== 'undefined' && currentUser) { %>
         <a href="/sell" class="btn btn--accent">Выставить товар</a>
+        <% if (currentUser.isAdmin) { %><a href="/admin/users" class="btn btn--ghost">Админка</a><% } %>
         <a href="/profile" class="btn btn--ghost btn--user">
           <span class="avatar-chip"><%= currentUser.display_name.charAt(0).toUpperCase() %></span>
           <%= currentUser.display_name %>

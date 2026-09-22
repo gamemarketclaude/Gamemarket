@@ -12,7 +12,7 @@
       <div class="profile-head__avatar"><%= currentUser.display_name.charAt(0).toUpperCase() %></div>
       <div>
         <h1><%= currentUser.display_name %></h1>
-        <div class="profile-head__meta">★ <%= currentUser.rating %> · <%= currentUser.deals_count %> завершённых сделок</div>
+        <div class="profile-head__meta">★ <%= currentUser.rating %> · <%= currentUser.deals_count %> завершённых сделок · <%= currentUser.email %></div>
       </div>
       <div class="profile-head__stats">
         <div><span class="mono"><%= totalSpent %> ₽</span><label>потрачено</label></div>
@@ -36,7 +36,7 @@
         <div class="order-list">
           <% purchases.forEach(function(o) { %>
             <div class="order-row">
-              <div class="order-row__thumb"><%- include('partials/art', { seed: o.image_seed || 'gv-default', rarity: 'common', icon: '' }) %></div>
+              <div class="order-row__thumb"><% if (o.cover) { %><img src="/public/uploads/products/<%= o.cover %>" alt=""><% } else { %><%- include('partials/art', { seed: o.image_seed || 'gv-default', rarity: 'common', icon: '' }) %><% } %></div>
               <div class="order-row__info">
                 <div class="order-row__title"><%= o.product_title %></div>
                 <div class="order-row__meta">Заказ #<%= o.id %> · <%= o.created_at %></div>
@@ -56,7 +56,7 @@
         <div class="order-list">
           <% sales.forEach(function(o) { %>
             <div class="order-row">
-              <div class="order-row__thumb"><%- include('partials/art', { seed: o.image_seed || 'gv-default', rarity: 'common', icon: '' }) %></div>
+              <div class="order-row__thumb"><% if (o.cover) { %><img src="/public/uploads/products/<%= o.cover %>" alt=""><% } else { %><%- include('partials/art', { seed: o.image_seed || 'gv-default', rarity: 'common', icon: '' }) %><% } %></div>
               <div class="order-row__info">
                 <div class="order-row__title"><%= o.product_title %></div>
                 <div class="order-row__meta">Покупатель: <%= o.buyer_name %> · <%= o.created_at %></div>

@@ -5,3 +5,4 @@ db/database.sqlite-wal
 db/database.sqlite-shm
 .env
 public/uploads/
+db/database.backup-*

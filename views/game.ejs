@@ -31,7 +31,7 @@
     </div>
 
     <div class="results__head">
-      <span class="results__count"><%= productCount %> предложений</span>
+      <span class="results__count"><%= productCount %> <%= plural(productCount, 'предложение', 'предложения', 'предложений') %></span>
       <form method="get" class="game-sort">
         <% if (activeSection) { %><input type="hidden" name="section" value="<%= activeSection %>"><% } %>
         <select name="sort">

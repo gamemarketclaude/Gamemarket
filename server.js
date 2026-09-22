@@ -15,6 +15,7 @@ const db = require('./db');
 const SqliteSessionStore = require('./lib/sqliteSessionStore');
 const { checkMessage, checkPhoneSplitting, hasSuspiciousDigitRun } = require('./lib/messageFilter');
 const { reviewPossiblePhoneSplit } = require('./lib/aiModeration');
+const { isValidEmail, normalizeEmail } = require('./lib/email');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -24,7 +25,13 @@ const RARITIES = ['common', 'rare', 'epic', 'legendary'];
 const RARITY_LABELS = { common: 'Обычное', rare: 'Редкое', epic: 'Эпическое', legendary: 'Легендарное' };
 const REMEMBER_ME_MS = 1000 * 60 * 60 * 24 * 30; // 30 дней
 const CSRF_COOKIE = 'gv.csrf';
-const MAX_PRODUCT_IMAGES = 4;
+const MAX_PRODUCT_IMAGES = 10;
+
+// Администраторы — почты через запятую в ADMIN_EMAILS (.env). Им доступна
+// страница /admin/users с баном по почте. Пусто = админки нет ни у кого.
+const ADMIN_EMAILS = new Set(
+  (process.env.ADMIN_EMAILS || '').split(',').map((e) => e.trim()).filter(Boolean).map(normalizeEmail)
+);
 
 // ---------- Загрузка фото товара ----------
 const UPLOADS_DIR = path.join(__dirname, 'public', 'uploads', 'products');
@@ -53,6 +60,14 @@ const upload = multer({
 });
 
 app.set('view engine', 'ejs');
+// Склонение по числу: plural(5, 'предложение', 'предложения', 'предложений')
+app.locals.plural = (n, one, few, many) => {
+  const n10 = n % 10;
+  const n100 = n % 100;
+  if (n10 === 1 && n100 !== 11) return one;
+  if (n10 >= 2 && n10 <= 4 && (n100 < 12 || n100 > 14)) return few;
+  return many;
+};
 app.set('views', path.join(__dirname, 'views'));
 app.set('trust proxy', 1); // корректно определять https за прокси хостинга (для secure-cookie)
 
@@ -153,11 +168,12 @@ const loginLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   handler: (req, res) => {
-    const next = (req.body && req.body.next && req.body.next.startsWith('/') && !req.body.next.startsWith('//')) ? req.body.next : '/profile';
+    const next = (req.body && typeof req.body.next === 'string' && req.body.next.startsWith('/') && !req.body.next.startsWith('//')) ? req.body.next : '/profile';
     res.status(429).render('login', {
       categories: getCategories(),
       error: 'Слишком много попыток входа. Подождите несколько минут и попробуйте снова.',
       next,
+      email: '',
     });
   },
 });
@@ -192,24 +208,66 @@ function asyncHandler(fn) {
   return (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
 }
 
+// Строка поиска из query: только строка (не массив), обрезанная по длине
+function queryString(value) {
+  return typeof value === 'string' ? value.trim().slice(0, 100) : '';
+}
+
+// Приводим к тому же виду, что и lower_ru() в базе: нижний регистр, ё -> е
+function normalizeSearch(text) {
+  return text.toLowerCase().replace(/ё/g, 'е');
+}
+
+// Слова запроса для поиска «все слова в любом порядке» (не больше 8, чтобы
+// не раздувать SQL-запрос). % и _ внутри слова экранировать не нужно — они
+// просто расширят совпадение, на безопасность это не влияет (параметры).
+function searchWords(text) {
+  return normalizeSearch(text).split(/[\s,;]+/).filter(Boolean).slice(0, 8);
+}
+
 function parsePositiveInt(value) {
   const n = Number(value);
   return Number.isInteger(n) && n > 0 ? n : null;
 }
 
-// Подгружаем текущего пользователя во все шаблоны
+// Забанен ли пользователь: либо помечен сам, либо его почта в чёрном списке
+const USER_BANNED_SQL = `(u.is_banned = 1 OR EXISTS (SELECT 1 FROM banned_emails b WHERE b.email_normalized = u.email_normalized))`;
+
+function isEmailBanned(emailNormalized) {
+  return !!db.prepare('SELECT 1 FROM banned_emails WHERE email_normalized = ?').get(emailNormalized);
+}
+
+// Подгружаем текущего пользователя во все шаблоны. Если пользователя забанили,
+// пока он был на сайте, — сессия сразу перестаёт действовать.
 app.use((req, res, next) => {
-  if (req.session.userId) {
-    res.locals.currentUser = db.prepare('SELECT id, username, display_name, rating, deals_count FROM users WHERE id = ?').get(req.session.userId);
-  } else {
-    res.locals.currentUser = null;
+  res.locals.currentUser = null;
+  if (!req.session.userId) return next();
+
+  const user = db.prepare(`
+    SELECT u.id, u.email, u.email_normalized, u.display_name, u.rating, u.deals_count, ${USER_BANNED_SQL} AS banned
+    FROM users u WHERE u.id = ?
+  `).get(req.session.userId);
+
+  if (!user || user.banned) {
+    delete req.session.userId;
+    return next();
   }
+  user.isAdmin = ADMIN_EMAILS.has(user.email_normalized);
+  res.locals.currentUser = user;
   next();
 });
 
 function requireAuth(req, res, next) {
   if (!req.session.userId) {
     return res.redirect('/login?next=' + encodeURIComponent(req.originalUrl));
+  }
+  next();
+}
+
+function requireAdmin(req, res, next) {
+  // Для не-админов страницы админки как будто не существует
+  if (!res.locals.currentUser || !res.locals.currentUser.isAdmin) {
+    return res.status(404).render('not-found', { categories: getCategories() });
   }
   next();
 }
@@ -266,29 +324,45 @@ function establishSession(req, userId, remember) {
 const SELLER_JOIN = `
   SELECT p.*, c.name AS category_name, c.slug AS category_slug, c.icon AS category_icon,
          g.slug AS game_slug, g.name_ru AS game_name_ru, g.name_en AS game_name_en, g.icon AS game_icon,
-         u.display_name AS seller_name, u.username AS seller_username,
+         u.display_name AS seller_name,
          u.rating AS seller_rating, u.deals_count AS seller_deals
   FROM products p
   JOIN categories c ON p.category_id = c.id
   JOIN games g ON p.game_id = g.id
-  JOIN users u ON p.seller_id = u.id
+  JOIN users u ON p.seller_id = u.id AND NOT ${USER_BANNED_SQL}
 `;
 
 // ---------- Каталог ----------
 app.get('/', (req, res) => {
-  const { category, sort, q, min, max, items_min, items_max, desc } = req.query;
+  const { category, sort, min, max, items_min, items_max } = req.query;
+  const q = queryString(req.query.q);
+  const titleQuery = queryString(req.query.title);
+  const descQuery = queryString(req.query.desc);
 
   let query = SELLER_JOIN + ' WHERE 1=1';
   const params = [];
 
   if (category) {
     query += ' AND c.slug = ?';
-    params.push(category);
+    params.push(String(category));
   }
   if (q) {
+    // Общий поиск из шапки: название товара, приметные скины, игра (RU/EN/синонимы)
     query += ' AND (lower_ru(p.title) LIKE ? OR lower_ru(p.notable_items) LIKE ? OR lower_ru(g.name_ru) LIKE ? OR lower_ru(g.name_en) LIKE ? OR g.aliases LIKE ?)';
-    const like = `%${q.toLowerCase()}%`;
+    const like = `%${normalizeSearch(q)}%`;
     params.push(like, like, like, like, like);
+  }
+  // Поиск по названию и поиск по описанию — отдельные строки. Запрос делится
+  // на слова, и каждое слово должно найтись (в любом порядке и месте текста):
+  // «сирена fer» найдёт аккаунт, где есть и «Сирена», и «Ferrari».
+  for (const word of searchWords(titleQuery)) {
+    query += ' AND lower_ru(p.title) LIKE ?';
+    params.push(`%${word}%`);
+  }
+  for (const word of searchWords(descQuery)) {
+    // В «описание» входит и список приметных скинов/предметов аккаунта
+    query += " AND (lower_ru(p.description) LIKE ? OR lower_ru(COALESCE(p.notable_items, '')) LIKE ?)";
+    params.push(`%${word}%`, `%${word}%`);
   }
   if (min && !Number.isNaN(Number(min))) {
     query += ' AND p.price >= ?';
@@ -305,11 +379,6 @@ app.get('/', (req, res) => {
   if (items_max && !Number.isNaN(Number(items_max))) {
     query += ' AND p.items_count <= ?';
     params.push(Number(items_max));
-  }
-  if (desc) {
-    // Поиск подстроки прямо в описании — «fer» найдёт «Ferrari» в любом месте текста.
-    query += ' AND lower_ru(p.description) LIKE ?';
-    params.push(`%${desc.toLowerCase().slice(0, 100)}%`);
   }
 
   const sortMap = {
@@ -334,7 +403,8 @@ app.get('/', (req, res) => {
     max: max || '',
     itemsMin: items_min || '',
     itemsMax: items_max || '',
-    descQuery: desc || '',
+    titleQuery,
+    descQuery,
     productCount: products.length,
   });
 });
@@ -568,7 +638,7 @@ app.post('/product/:id/message', requireAuth, messageLimiter, verifyCsrf, asyncH
   if (!productId) {
     return res.status(404).render('not-found', { categories: getCategories() });
   }
-  const product = db.prepare('SELECT id FROM products WHERE id = ?').get(productId);
+  const product = db.prepare(SELLER_JOIN + ' WHERE p.id = ?').get(productId);
   if (!product) {
     return res.status(404).render('not-found', { categories: getCategories() });
   }
@@ -626,7 +696,8 @@ app.post('/product/:id/buy', requireAuth, verifyCsrf, (req, res) => {
   if (!productId) {
     return res.status(404).render('not-found', { categories: getCategories() });
   }
-  const product = db.prepare('SELECT * FROM products WHERE id = ?').get(productId);
+  // Через SELLER_JOIN: объявления забаненных продавцов купить нельзя
+  const product = db.prepare(SELLER_JOIN + ' WHERE p.id = ?').get(productId);
   if (!product) {
     return res.status(404).render('not-found', { categories: getCategories() });
   }
@@ -665,28 +736,44 @@ app.get('/register', (req, res) => {
 });
 
 app.post('/register', registerLimiter, verifyCsrf, asyncHandler(async (req, res) => {
-  const { username, display_name, password, password_confirm } = req.body;
+  const email = String(req.body.email || '').trim();
+  const displayName = String(req.body.display_name || '').trim();
+  const password = String(req.body.password || '');
+  const passwordConfirm = String(req.body.password_confirm || '');
   const remember = req.body.remember === 'on';
 
   const fail = (message) => res.status(400).render('register', {
     categories: getCategories(),
     error: message,
-    formValues: { username, display_name },
+    formValues: { email, display_name: displayName },
   });
 
-  if (!username || !password || !display_name) return fail('Заполните все поля');
-  if (!/^[a-zA-Z0-9_]{3,20}$/.test(username)) return fail('Логин: 3–20 символов, латиница/цифры/подчёркивание');
-  if (display_name.trim().length < 1 || display_name.length > 40) return fail('Отображаемое имя: до 40 символов');
+  if (!email || !password || !displayName) return fail('Заполните все поля');
+  if (!isValidEmail(email)) return fail('Укажите настоящий адрес почты, например ivan@mail.ru');
+  if (displayName.length > 40) return fail('Отображаемое имя: до 40 символов');
   if (password.length < 6 || password.length > 200) return fail('Пароль должен быть не короче 6 символов');
-  if (password !== password_confirm) return fail('Пароли не совпадают');
+  if (password !== passwordConfirm) return fail('Пароли не совпадают');
 
-  const existing = db.prepare('SELECT id FROM users WHERE username = ?').get(username.toLowerCase());
-  if (existing) return fail('Такой логин уже занят');
+  const emailNormalized = normalizeEmail(email);
+  if (isEmailBanned(emailNormalized)) {
+    return fail('Регистрация с этой почтой невозможна: адрес заблокирован администрацией площадки.');
+  }
+  const existing = db.prepare('SELECT id FROM users WHERE email_normalized = ?').get(emailNormalized);
+  if (existing) return fail('Аккаунт с этой почтой уже зарегистрирован. Войдите или укажите другую почту.');
 
   const hash = await bcrypt.hash(password, 10);
-  const info = db.prepare(`
-    INSERT INTO users (username, password_hash, display_name) VALUES (?, ?, ?)
-  `).run(username.toLowerCase(), hash, display_name.trim());
+  let info;
+  try {
+    info = db.prepare(`
+      INSERT INTO users (email, email_normalized, password_hash, display_name) VALUES (?, ?, ?, ?)
+    `).run(email, emailNormalized, hash, displayName);
+  } catch (err) {
+    // Две одновременные регистрации одной почты: вторую отсекает UNIQUE в базе
+    if (String(err.message).includes('UNIQUE')) {
+      return fail('Аккаунт с этой почтой уже зарегистрирован. Войдите или укажите другую почту.');
+    }
+    throw err;
+  }
 
   await establishSession(req, info.lastInsertRowid, remember);
   res.redirect('/profile');
@@ -695,19 +782,25 @@ app.post('/register', registerLimiter, verifyCsrf, asyncHandler(async (req, res)
 // ---------- Вход ----------
 app.get('/login', (req, res) => {
   if (req.session.userId) return res.redirect('/profile');
-  res.render('login', { categories: getCategories(), error: null, next: req.query.next || '/profile' });
+  res.render('login', { categories: getCategories(), error: null, next: req.query.next || '/profile', email: '' });
 });
 
 app.post('/login', loginLimiter, verifyCsrf, asyncHandler(async (req, res) => {
-  const { username, password } = req.body;
+  const email = String(req.body.email || '').trim().slice(0, 254);
+  const password = String(req.body.password || '');
   const remember = req.body.remember === 'on';
   // startsWith('//') отсекает protocol-relative open redirect (напр. next=//evil.example)
-  const next = (req.body.next && req.body.next.startsWith('/') && !req.body.next.startsWith('//')) ? req.body.next : '/profile';
-  const user = db.prepare('SELECT * FROM users WHERE username = ?').get((username || '').toLowerCase());
+  const next = (typeof req.body.next === 'string' && req.body.next.startsWith('/') && !req.body.next.startsWith('//')) ? req.body.next : '/profile';
+  const user = db.prepare(`SELECT u.*, ${USER_BANNED_SQL} AS banned FROM users u WHERE u.email_normalized = ?`).get(normalizeEmail(email));
 
-  const valid = user ? await bcrypt.compare(password || '', user.password_hash) : false;
+  const valid = user ? await bcrypt.compare(password, user.password_hash) : false;
   if (!valid) {
-    return res.status(401).render('login', { categories: getCategories(), error: 'Неверный логин или пароль', next });
+    return res.status(401).render('login', { categories: getCategories(), error: 'Неверная почта или пароль', next, email });
+  }
+  // О бане сообщаем только после верного пароля — иначе по этому сообщению
+  // посторонний мог бы проверять, какие почты зарегистрированы на площадке.
+  if (user.banned) {
+    return res.status(403).render('login', { categories: getCategories(), error: 'Этот аккаунт заблокирован администрацией площадки.', next, email });
   }
 
   await establishSession(req, user.id, remember);
@@ -728,7 +821,8 @@ app.get('/profile', requireAuth, (req, res) => {
   const userId = req.session.userId;
 
   const purchases = db.prepare(`
-    SELECT o.*, p.image_seed, p.id AS product_id_live
+    SELECT o.*, p.image_seed, p.id AS product_id_live,
+           (SELECT pi.filename FROM product_images pi WHERE pi.product_id = o.product_id ORDER BY pi.position LIMIT 1) AS cover
     FROM orders o
     LEFT JOIN products p ON p.id = o.product_id
     WHERE o.buyer_id = ?
@@ -736,7 +830,8 @@ app.get('/profile', requireAuth, (req, res) => {
   `).all(userId);
 
   const sales = db.prepare(`
-    SELECT o.*, p.image_seed, u.display_name AS buyer_name
+    SELECT o.*, p.image_seed, u.display_name AS buyer_name,
+           (SELECT pi.filename FROM product_images pi WHERE pi.product_id = o.product_id ORDER BY pi.position LIMIT 1) AS cover
     FROM orders o
     LEFT JOIN products p ON p.id = o.product_id
     JOIN users u ON u.id = o.buyer_id
@@ -755,6 +850,71 @@ app.get('/profile', requireAuth, (req, res) => {
     totalSpent: purchases.reduce((sum, o) => sum + o.price, 0),
     totalEarned: sales.reduce((sum, o) => sum + o.price, 0),
   });
+});
+
+// ---------- Админка: бан по почте ----------
+// Доступна только почтам из ADMIN_EMAILS. Бан действует на почту (в
+// каноническом виде), а не на конкретную запись: забаненный не сможет ни
+// войти, ни зарегистрироваться заново тем же ящиком, его объявления
+// скрываются из каталога.
+app.get('/admin/users', requireAuth, requireAdmin, (req, res) => {
+  const q = String(req.query.q || '').trim().toLowerCase().slice(0, 100);
+  let users;
+  if (q) {
+    const like = `%${q}%`;
+    users = db.prepare(`
+      SELECT u.id, u.email, u.display_name, u.deals_count, u.created_at, ${USER_BANNED_SQL} AS banned
+      FROM users u
+      WHERE u.email_normalized LIKE ? OR lower_ru(u.email) LIKE ? OR lower_ru(u.display_name) LIKE ?
+      ORDER BY u.created_at DESC LIMIT 200
+    `).all(like, like, like);
+  } else {
+    users = db.prepare(`
+      SELECT u.id, u.email, u.display_name, u.deals_count, u.created_at, ${USER_BANNED_SQL} AS banned
+      FROM users u ORDER BY u.created_at DESC LIMIT 200
+    `).all();
+  }
+  const bannedEmails = db.prepare('SELECT * FROM banned_emails ORDER BY created_at DESC').all();
+
+  res.render('admin-users', {
+    categories: getCategories(),
+    users,
+    bannedEmails,
+    q,
+    notice: typeof req.query.notice === 'string' ? req.query.notice.slice(0, 200) : null,
+    error: typeof req.query.error === 'string' ? req.query.error.slice(0, 200) : null,
+  });
+});
+
+app.post('/admin/ban', requireAuth, requireAdmin, verifyCsrf, (req, res) => {
+  const email = String(req.body.email || '').trim();
+  const reason = String(req.body.reason || '').trim().slice(0, 200) || null;
+  if (!isValidEmail(email)) {
+    return res.redirect('/admin/users?error=' + encodeURIComponent('Некорректный адрес почты'));
+  }
+  const emailNormalized = normalizeEmail(email);
+  if (ADMIN_EMAILS.has(emailNormalized)) {
+    return res.redirect('/admin/users?error=' + encodeURIComponent('Нельзя забанить администратора (уберите его из ADMIN_EMAILS)'));
+  }
+
+  db.transaction(() => {
+    db.prepare(`
+      INSERT INTO banned_emails (email_normalized, reason) VALUES (?, ?)
+      ON CONFLICT(email_normalized) DO UPDATE SET reason = excluded.reason
+    `).run(emailNormalized, reason);
+    db.prepare('UPDATE users SET is_banned = 1 WHERE email_normalized = ?').run(emailNormalized);
+  })();
+
+  res.redirect('/admin/users?notice=' + encodeURIComponent(`Почта ${emailNormalized} забанена`));
+});
+
+app.post('/admin/unban', requireAuth, requireAdmin, verifyCsrf, (req, res) => {
+  const emailNormalized = normalizeEmail(String(req.body.email || ''));
+  db.transaction(() => {
+    db.prepare('DELETE FROM banned_emails WHERE email_normalized = ?').run(emailNormalized);
+    db.prepare('UPDATE users SET is_banned = 0 WHERE email_normalized = ?').run(emailNormalized);
+  })();
+  res.redirect('/admin/users?notice=' + encodeURIComponent(`Почта ${emailNormalized} разбанена`));
 });
 
 app.use((req, res) => {

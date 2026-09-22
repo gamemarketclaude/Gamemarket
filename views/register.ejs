@@ -18,14 +18,15 @@
         <label>Отображаемое имя
           <input type="text" name="display_name" value="<%= formValues.display_name || '' %>" maxlength="40" required autofocus>
         </label>
-        <label>Логин
-          <input type="text" name="username" value="<%= formValues.username || '' %>" pattern="[a-zA-Z0-9_]{3,20}" title="3–20 символов: латиница, цифры, подчёркивание" required>
+        <label>Почта
+          <input type="email" name="email" value="<%= formValues.email || '' %>" autocomplete="email" inputmode="email" maxlength="254" required>
+          <span class="auth-form__hint">По ней вы будете входить на сайт</span>
         </label>
         <label>Пароль
-          <input type="password" name="password" minlength="6" required>
+          <input type="password" name="password" minlength="6" autocomplete="new-password" required>
         </label>
         <label>Повторите пароль
-          <input type="password" name="password_confirm" minlength="6" required>
+          <input type="password" name="password_confirm" minlength="6" autocomplete="new-password" required>
         </label>
         <label class="auth-form__checkbox">
           <input type="checkbox" name="remember" checked>

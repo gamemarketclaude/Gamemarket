@@ -21,7 +21,7 @@
 
   <main class="layout">
     <aside class="filters">
-      <form method="get" action="/" class="filters__form">
+      <form method="get" action="/" class="filters__form" id="catalog-filters">
         <% if (q) { %><input type="hidden" name="q" value="<%= q %>"><% } %>
 
         <h2 class="filters__title">Фильтры</h2>
@@ -53,11 +53,6 @@
         </div>
 
         <div class="filters__group">
-          <label for="desc">Поиск по описанию</label>
-          <input type="text" name="desc" id="desc" placeholder="Например, fer" maxlength="100" value="<%= descQuery %>">
-        </div>
-
-        <div class="filters__group">
           <label for="sort">Сортировка</label>
           <select name="sort" id="sort">
             <option value="newest" <%= activeSort === 'newest' ? 'selected' : '' %>>Сначала новые</option>
@@ -73,6 +68,20 @@
     </aside>
 
     <section class="results">
+      <%# Две строки поиска — поля привязаны к форме фильтров через атрибут form,
+          поэтому поиск учитывает и выбранные слева категорию/цену/сортировку %>
+      <div class="search-bar">
+        <label class="search-bar__field">
+          <span class="search-bar__label">Поиск по названию</span>
+          <input type="search" name="title" form="catalog-filters" value="<%= titleQuery %>" maxlength="100" placeholder="Например: аккаунт, робуксы, AK-47">
+        </label>
+        <label class="search-bar__field">
+          <span class="search-bar__label">Поиск по описанию и скинам</span>
+          <input type="search" name="desc" form="catalog-filters" value="<%= descQuery %>" maxlength="100" placeholder="Например: сирена, ferrari, джунгли">
+        </label>
+        <button type="submit" form="catalog-filters" class="btn btn--accent search-bar__btn">Найти</button>
+      </div>
+
       <div class="results__head">
         <h1>
           <% if (activeCategory) { %>
@@ -81,7 +90,7 @@
             Все категории
           <% } %>
         </h1>
-        <span class="results__count"><%= productCount %> предложений</span>
+        <span class="results__count"><%= productCount %> <%= plural(productCount, 'предложение', 'предложения', 'предложений') %></span>
       </div>
 
       <% if (products.length === 0) { %>

@@ -8,7 +8,9 @@
   },
   "scripts": {
     "start": "node --disable-warning=ExperimentalWarning server.js",
-    "seed": "node --disable-warning=ExperimentalWarning db/init.js"
+    "seed": "node --disable-warning=ExperimentalWarning db/init.js",
+    "ban": "node --disable-warning=ExperimentalWarning scripts/ban.js ban",
+    "unban": "node --disable-warning=ExperimentalWarning scripts/ban.js unban"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",

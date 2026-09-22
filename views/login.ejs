@@ -16,8 +16,8 @@
       <form method="post" action="/login" class="auth-form">
         <input type="hidden" name="_csrf" value="<%= csrfToken %>">
         <input type="hidden" name="next" value="<%= next %>">
-        <label>Логин
-          <input type="text" name="username" autocomplete="username" required autofocus>
+        <label>Почта
+          <input type="email" name="email" value="<%= typeof email !== 'undefined' ? email : '' %>" autocomplete="email" inputmode="email" maxlength="254" required autofocus>
         </label>
         <label>Пароль
           <input type="password" name="password" autocomplete="current-password" required>
@@ -30,7 +30,7 @@
       </form>
 
       <p class="auth-card__hint">
-        Демо-аккаунт: <span class="mono">demo</span> / <span class="mono">password123</span>
+        Демо-аккаунт: <span class="mono">demo@example.com</span> / <span class="mono">password123</span>
       </p>
       <p class="auth-card__switch">Нет аккаунта? <a href="/register">Зарегистрироваться</a></p>
     </div>

@@ -76,11 +76,19 @@
           </label>
         </div>
 
-        <label>
-          Фото товара (до <%= maxImages %> шт., JPG/PNG/WEBP, каждое до 5 МБ)
-          <input type="file" name="images" accept="image/jpeg,image/png,image/webp" multiple data-sell-images>
-        </label>
-        <div class="sell-form__previews" data-sell-previews></div>
+        <div class="sell-form__photos">
+          <div class="sell-form__photos-head">
+            <span>Фото товара <span class="sell-form__optional">— необязательно</span></span>
+            <span class="sell-form__photos-count" data-sell-photo-count>до <%= maxImages %> шт.</span>
+          </div>
+          <%# Плитки с «+» рисует public/js/sell-form.js. Если JS не сработал —
+              остаётся обычное поле выбора файлов ниже, форма всё равно работает. %>
+          <div class="photo-tiles" data-sell-tiles data-max="<%= maxImages %>" hidden></div>
+          <input type="file" name="images" accept="image/jpeg,image/png,image/webp" multiple data-sell-images class="sell-form__native-file">
+          <p class="sell-form__hint">JPG, PNG или WEBP, каждое до 5 МБ. Первое фото — обложка объявления, его видно в каталоге.</p>
+          <p class="sell-form__photo-error" data-sell-photo-error hidden></p>
+          <% if (error) { %><p class="sell-form__hint">Если вы добавляли фото — выберите их ещё раз: после ошибки браузер их не сохраняет.</p><% } %>
+        </div>
 
         <button type="submit" class="btn btn--accent btn--block btn--lg">Опубликовать объявление</button>
       </form>

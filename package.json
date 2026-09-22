@@ -3,13 +3,16 @@
   "version": "1.0.0",
   "description": "GearVault — маркетплейс игровых аккаунтов, валюты, предметов, бустинга и ключей",
   "main": "server.js",
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
     "start": "node server.js",
     "seed": "node db/init.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
-    "better-sqlite3": "^11.3.0",
+    "better-sqlite3": "^13.0.3",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.6",
     "dotenv": "^16.4.5",

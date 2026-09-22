@@ -1,3 +1,14 @@
+// Понятное сообщение вместо непонятной ошибки, если Node.js слишком старый:
+// встроенная база node:sqlite появилась только в Node.js 22.13.
+{
+  const [major, minor] = process.versions.node.split('.').map(Number);
+  if (major < 22 || (major === 22 && minor < 13)) {
+    console.error(`\n[GearVault] Нужен Node.js версии 22.13 или новее, а установлен ${process.versions.node}.`);
+    console.error('[GearVault] Скачайте LTS-версию с https://nodejs.org, установите и запустите сайт снова.\n');
+    process.exit(1);
+  }
+}
+
 require('dotenv').config();
 
 const crypto = require('crypto');
@@ -935,6 +946,15 @@ app.use((err, req, res, next) => {
   }
 });
 
-app.listen(PORT, () => {
+const server = app.listen(PORT, () => {
   console.log(`GearVault запущен: http://localhost:${PORT}`);
+});
+
+server.on('error', (err) => {
+  if (err.code === 'EADDRINUSE') {
+    console.error(`\n[GearVault] Порт ${PORT} уже занят — скорее всего, сайт (или его старая версия) уже запущен в другом окне.`);
+    console.error('[GearVault] Закройте то окно (или нажмите в нём Ctrl+C) и запустите сайт снова.\n');
+    process.exit(1);
+  }
+  throw err;
 });

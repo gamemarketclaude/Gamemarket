@@ -1,4 +1,6 @@
-// Пролистывание фото на странице товара (до 4 шт.) — стрелки и точки.
+// Пролистывание фото (до 4 шт.) — стрелки и точки. Работает и на странице
+// товара, и на самих карточках в каталоге (там карточка целиком — ссылка на
+// товар, поэтому клик по стрелке/точке останавливаем, чтобы не переходило).
 (function () {
   document.querySelectorAll('[data-gallery]').forEach((root) => {
     const slides = Array.from(root.querySelectorAll('[data-gallery-slide]'));
@@ -13,8 +15,13 @@
       dots.forEach((el, n) => el.classList.toggle('is-active', n === index));
     }
 
-    if (prevBtn) prevBtn.addEventListener('click', () => show(index - 1));
-    if (nextBtn) nextBtn.addEventListener('click', () => show(index + 1));
-    dots.forEach((dot, i) => dot.addEventListener('click', () => show(i)));
+    function stop(e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+
+    if (prevBtn) prevBtn.addEventListener('click', (e) => { stop(e); show(index - 1); });
+    if (nextBtn) nextBtn.addEventListener('click', (e) => { stop(e); show(index + 1); });
+    dots.forEach((dot, i) => dot.addEventListener('click', (e) => { stop(e); show(i); }));
   });
 })();

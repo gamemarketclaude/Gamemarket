@@ -1,7 +1,22 @@
 <a href="/product/<%= p.id %>" class="card card--<%= p.rarity %>">
   <div class="card__image">
-    <% if (p.cover_image) { %>
-      <img src="/public/uploads/products/<%= p.cover_image %>" alt="<%= p.title %>" loading="lazy" class="card__photo">
+    <% if (p.images && p.images.length) { %>
+      <div class="gallery gallery--card" data-gallery>
+        <div class="gallery__slides">
+          <% p.images.forEach(function(file, i) { %>
+            <img src="/public/uploads/products/<%= file %>" alt="<%= p.title %>" loading="lazy" class="gallery__slide <%= i === 0 ? 'is-active' : '' %>" data-gallery-slide>
+          <% }) %>
+        </div>
+        <% if (p.images.length > 1) { %>
+          <button type="button" class="gallery__arrow gallery__arrow--sm gallery__arrow--prev" data-gallery-prev aria-label="Предыдущее фото">‹</button>
+          <button type="button" class="gallery__arrow gallery__arrow--sm gallery__arrow--next" data-gallery-next aria-label="Следующее фото">›</button>
+          <div class="gallery__dots gallery__dots--sm" data-gallery-dots>
+            <% p.images.forEach(function(file, i) { %>
+              <button type="button" class="gallery__dot <%= i === 0 ? 'is-active' : '' %>" data-gallery-dot="<%= i %>" aria-label="Фото <%= i + 1 %>"></button>
+            <% }) %>
+          </div>
+        <% } %>
+      </div>
     <% } else { %>
       <%- include('art', { seed: p.image_seed, rarity: p.rarity, icon: p.category_icon }) %>
     <% } %>

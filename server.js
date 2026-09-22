@@ -234,6 +234,22 @@ function getProductImages(productId) {
   return db.prepare('SELECT filename FROM product_images WHERE product_id = ? ORDER BY position ASC').all(productId).map((r) => r.filename);
 }
 
+// Догружает все фото пачкой для списка карточек (каталог/страница игры/похожие
+// товары/мои объявления), чтобы можно было листать фото прямо на карточке —
+// один запрос на всю страницу вместо запроса на каждую карточку отдельно.
+function attachImages(products) {
+  if (!products.length) return products;
+  const ids = products.map((p) => p.id);
+  const placeholders = ids.map(() => '?').join(',');
+  const rows = db.prepare(`SELECT product_id, filename FROM product_images WHERE product_id IN (${placeholders}) ORDER BY position ASC`).all(...ids);
+  const byProduct = {};
+  rows.forEach((r) => {
+    (byProduct[r.product_id] = byProduct[r.product_id] || []).push(r.filename);
+  });
+  products.forEach((p) => { p.images = byProduct[p.id] || []; });
+  return products;
+}
+
 function establishSession(req, userId, remember) {
   return new Promise((resolve, reject) => {
     req.session.regenerate((err) => {
@@ -251,8 +267,7 @@ const SELLER_JOIN = `
   SELECT p.*, c.name AS category_name, c.slug AS category_slug, c.icon AS category_icon,
          g.slug AS game_slug, g.name_ru AS game_name_ru, g.name_en AS game_name_en, g.icon AS game_icon,
          u.display_name AS seller_name, u.username AS seller_username,
-         u.rating AS seller_rating, u.deals_count AS seller_deals,
-         (SELECT filename FROM product_images WHERE product_id = p.id ORDER BY position ASC LIMIT 1) AS cover_image
+         u.rating AS seller_rating, u.deals_count AS seller_deals
   FROM products p
   JOIN categories c ON p.category_id = c.id
   JOIN games g ON p.game_id = g.id
@@ -305,7 +320,7 @@ app.get('/', (req, res) => {
   };
   query += ' ORDER BY ' + (sortMap[sort] || 'p.created_at DESC');
 
-  const products = db.prepare(query).all(...params);
+  const products = attachImages(db.prepare(query).all(...params));
 
   res.render('catalog', {
     products,
@@ -381,7 +396,7 @@ app.get('/game/:slug', (req, res) => {
   };
   query += ' ORDER BY ' + (sortMap[sort] || 'p.created_at DESC');
 
-  const products = db.prepare(query).all(...params);
+  const products = attachImages(db.prepare(query).all(...params));
 
   res.render('game', {
     game,
@@ -524,8 +539,8 @@ app.get('/product/:id', (req, res) => {
     return res.status(404).render('not-found', { categories: getCategories() });
   }
 
-  const similar = db.prepare(SELLER_JOIN + ' WHERE p.category_id = ? AND p.id != ? ORDER BY RANDOM() LIMIT 4')
-    .all(product.category_id, product.id);
+  const similar = attachImages(db.prepare(SELLER_JOIN + ' WHERE p.category_id = ? AND p.id != ? ORDER BY RANDOM() LIMIT 4')
+    .all(product.category_id, product.id));
 
   const messages = db.prepare(`
     SELECT m.*, u.display_name AS sender_name
@@ -729,7 +744,7 @@ app.get('/profile', requireAuth, (req, res) => {
     ORDER BY o.created_at DESC
   `).all(userId);
 
-  const myListings = db.prepare(SELLER_JOIN + ' WHERE p.seller_id = ? ORDER BY p.created_at DESC').all(userId);
+  const myListings = attachImages(db.prepare(SELLER_JOIN + ' WHERE p.seller_id = ? ORDER BY p.created_at DESC').all(userId));
 
   res.render('profile', {
     categories: getCategories(),

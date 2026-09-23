@@ -20,6 +20,7 @@ db.exec(`
   DROP TABLE IF EXISTS sales_feed;
   DROP TABLE IF EXISTS users;
   DROP TABLE IF EXISTS banned_emails;
+  DROP TABLE IF EXISTS moderation_log;
   -- Сессии тоже сбрасываем: после пересоздания пользователей старая сессия
   -- могла бы указывать на чужой id
   DROP TABLE IF EXISTS sessions;
@@ -81,6 +82,8 @@ db.exec(`
     -- и через запятую 2-3 приметных названия, по которым покупатель узнаёт аккаунт.
     items_count INTEGER,
     notable_items TEXT,
+    -- Характеристики, свои для игры и раздела (см. lib/listingFields.js), JSON
+    attributes TEXT,
     created_at TEXT NOT NULL DEFAULT (datetime('now'))
   );
 
@@ -109,6 +112,17 @@ db.exec(`
     buyer_name TEXT NOT NULL,
     price REAL NOT NULL,
     minutes_ago INTEGER NOT NULL
+  );
+
+  -- Заблокированные фильтром сообщения/объявления — видны админу
+  CREATE TABLE moderation_log (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER REFERENCES users(id),
+    product_id INTEGER REFERENCES products(id),
+    source TEXT NOT NULL,
+    body TEXT NOT NULL,
+    code TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
   );
 
   CREATE TABLE messages (
@@ -247,6 +261,7 @@ const productDefs = [
     items_count: 47,
     notable_items: 'Сирена, Ferrari, Джон Уик',
     images: ['fortnite-account-1.jpg', 'fortnite-account-2.jpg', 'fortnite-account-3.jpg', 'fortnite-account-4.jpg'],
+    attributes: { platform: 'Все платформы', level: 312, vbucks: 1850, pickaxes: 16, access: 'Полный доступ + почта', native_mail: true },
   },
   {
     game: 'cs2', category: 'accounts', seller: 'vega_market', rarity: 'epic',
@@ -256,6 +271,7 @@ const productDefs = [
     items_count: 12,
     notable_items: 'AK-47 Аваллон, Керамбит Тигр, Перчатки Кровавая паутина',
     images: ['cs2-account-1.jpg', 'cs2-account-2.jpg'],
+    attributes: { prime: true, premier: 18450, rank: 'Беркут', hours: 2146, faceit: 7, vac: 'Без банов', medal_years: 5, inventory_value: 41000, access: 'Полный доступ + почта' },
   },
   {
     game: 'cs2', category: 'items', seller: 'nightseller', rarity: 'epic',
@@ -263,6 +279,7 @@ const productDefs = [
     description: 'Засекреченное, немного поношенное (float 0.1247, шаблон #412), без наклеек. Нет блокировки обмена — предмет передаётся через обмен Steam сразу после подтверждения сделки на площадке.',
     price: 2450, stock: 1,
     images: ['cs2-ak-lotus-1.jpg', 'cs2-ak-lotus-2.jpg'],
+    attributes: { wear: 'Немного поношенное (MW)', float: '0.1247', pattern: '412', transfer: 'Обмен в игре', delivery: 'До 1 часа' },
   },
   {
     game: 'roblox', category: 'currency', seller: 'progoods', rarity: 'common',
@@ -270,6 +287,7 @@ const productDefs = [
     description: 'Зачисление на аккаунт Roblox в течение 15 минут после оплаты, официальным способом, без передачи пароля.',
     price: 590, stock: 8,
     images: ['roblox-robux-1.jpg'],
+    attributes: { amount: 800, method: 'По ID игрока', delivery: 'До 1 часа' },
   },
   {
     game: 'brawl-stars', category: 'boosting', seller: 'arenadeals', rarity: 'rare',
@@ -277,6 +295,7 @@ const productDefs = [
     description: 'Поднимем ранг в рейтинговых боях до лиги «Легенда» (с любой лиги: Бронза, Серебро, Золото, Алмаз, Мифик). Играют опытные игроки, без читов и сторонних программ, отчёт после каждой сессии.',
     price: 1400, stock: 3,
     images: ['brawl-boost-1.jpg'],
+    attributes: { from_rank: 'Золото', to_rank: 'Легенда', mode: 'Со входом на аккаунт', delivery: '1–3 дня' },
   },
   {
     game: 'standoff-2', category: 'keys', seller: 'shadowtrade', rarity: 'common',
@@ -284,6 +303,7 @@ const productDefs = [
     description: 'Промокод на нож «Неоновая волна». Код придёт в чат сделки сразу после оплаты, активация в игре в один клик, инструкция прилагается.',
     price: 250, stock: 15,
     images: ['standoff-promo-1.jpg'],
+    attributes: { region: 'Весь мир', key_type: 'Промокод' },
   },
   {
     game: 'gta-v', category: 'gifts', seller: 'vega_market', rarity: 'rare',
@@ -291,6 +311,7 @@ const productDefs = [
     description: 'Электронный код на 1000 ₽, подходит для покупок в Rockstar Games Launcher и GTA Online. Код приходит в чат сделки сразу после оплаты.',
     price: 980, stock: 5,
     images: ['gta-giftcard-1.jpg'],
+    attributes: { nominal: 1000, region: 'Россия и СНГ' },
   },
   {
     game: 'genshin-impact', category: 'other', seller: 'progoods', rarity: 'common',
@@ -298,12 +319,13 @@ const productDefs = [
     description: 'Проходим с вами Витую бездну и другие сложные испытания на все 36 звёзд в удобное время (ежедневно 12:00–23:00 МСК). Подскажем по отрядам и артефактам, голосовая связь по желанию.',
     price: 350, stock: 4,
     images: ['genshin-escort-1.jpg'],
+    attributes: { delivery: 'До 24 часов' },
   },
 ];
 
 const insertProduct = db.prepare(`
-  INSERT INTO products (category_id, game_id, seller_id, title, description, price, rarity, image_seed, stock, items_count, notable_items)
-  VALUES (@category_id, @game_id, @seller_id, @title, @description, @price, @rarity, @image_seed, @stock, @items_count, @notable_items)
+  INSERT INTO products (category_id, game_id, seller_id, title, description, price, rarity, image_seed, stock, items_count, notable_items, attributes)
+  VALUES (@category_id, @game_id, @seller_id, @title, @description, @price, @rarity, @image_seed, @stock, @items_count, @notable_items, @attributes)
 `);
 
 // Демо-картинки лежат в db/seed-images (нарисованы специально для демо, не
@@ -329,6 +351,7 @@ for (const def of productDefs) {
     stock: def.stock,
     items_count: def.items_count || null,
     notable_items: def.notable_items || null,
+    attributes: def.attributes ? JSON.stringify(def.attributes) : null,
   };
   const info = insertProduct.run(row);
   allProducts.push({ id: info.lastInsertRowid, ...row });

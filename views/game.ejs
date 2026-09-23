@@ -30,9 +30,55 @@
       <% }) %>
     </div>
 
+    <% if (filterFields.length) { %>
+      <%# Фильтры по характеристикам раздела (Prime, ранг, уровень, платформа…) — описаны в lib/listingFields.js %>
+      <% const activeCount = Object.keys(activeFilters).length; %>
+      <details class="game-filters" data-filters data-active-count="<%= activeCount %>" open>
+        <summary class="game-filters__summary">
+          <span>Фильтры раздела</span>
+          <% if (activeCount) { %><span class="filters__badge"><%= activeCount %></span><% } %>
+        </summary>
+        <div class="game-filters__grid">
+          <% if (activeSection === 'accounts') { %>
+            <label class="game-filters__field">
+              <span>Скинов/предметов от</span>
+              <input type="number" name="items_min" min="0" form="game-sort" value="<%= activeFilters.items_min || '' %>">
+            </label>
+          <% } %>
+          <% filterFields.forEach(function(f) { %>
+            <% if (f.type === 'select') { %>
+              <label class="game-filters__field">
+                <span><%= f.label %></span>
+                <select name="f_<%= f.key %>" form="game-sort">
+                  <option value="">Любой</option>
+                  <% f.options.forEach(function(o) { %>
+                    <option value="<%= o %>" <%= activeFilters[f.key] === o ? 'selected' : '' %>><%= o %></option>
+                  <% }) %>
+                </select>
+              </label>
+            <% } else if (f.type === 'bool') { %>
+              <label class="game-filters__field game-filters__field--check">
+                <input type="checkbox" name="f_<%= f.key %>" value="1" form="game-sort" <%= activeFilters[f.key] ? 'checked' : '' %>>
+                <span><%= f.label %></span>
+              </label>
+            <% } else if (f.type === 'number') { %>
+              <label class="game-filters__field">
+                <span><%= f.label %> — от</span>
+                <input type="number" name="f_<%= f.key %>" min="0" step="any" form="game-sort" value="<%= activeFilters[f.key] || '' %>">
+              </label>
+            <% } %>
+          <% }) %>
+        </div>
+        <div class="game-filters__actions">
+          <button type="submit" form="game-sort" class="btn btn--accent btn--sm">Показать</button>
+          <a href="/game/<%= game.slug %>?section=<%= activeSection %>" class="filters__reset">Сбросить фильтры</a>
+        </div>
+      </details>
+    <% } %>
+
     <div class="results__head">
       <span class="results__count"><%= productCount %> <%= plural(productCount, 'предложение', 'предложения', 'предложений') %></span>
-      <form method="get" class="game-sort">
+      <form method="get" class="game-sort" id="game-sort">
         <% if (activeSection) { %><input type="hidden" name="section" value="<%= activeSection %>"><% } %>
         <select name="sort">
           <option value="newest" <%= activeSort === 'newest' ? 'selected' : '' %>>Сначала новые</option>
@@ -60,5 +106,6 @@
   </main>
 
   <%- include('partials/footer') %>
+  <script src="/public/js/catalog.js" defer></script>
 </body>
 </html>

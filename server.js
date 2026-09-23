@@ -24,9 +24,10 @@ const rateLimit = require('express-rate-limit');
 const multer = require('multer');
 const db = require('./db');
 const SqliteSessionStore = require('./lib/sqliteSessionStore');
-const { checkMessage, checkPhoneSplitting, hasSuspiciousDigitRun } = require('./lib/messageFilter');
+const { checkMessage, checkConversation, checkPhoneSplitting, hasSuspiciousDigitRun } = require('./lib/messageFilter');
 const { reviewPossiblePhoneSplit } = require('./lib/aiModeration');
 const { isValidEmail, normalizeEmail } = require('./lib/email');
+const listingFields = require('./lib/listingFields');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -290,6 +291,16 @@ function requireAdmin(req, res, next) {
   next();
 }
 
+// Журнал заблокированных сообщений — админ видит, кто пытается обойти площадку
+function logModeration(userId, productId, source, text, code) {
+  try {
+    db.prepare('INSERT INTO moderation_log (user_id, product_id, source, body, code) VALUES (?, ?, ?, ?, ?)')
+      .run(userId || null, productId || null, source, String(text).slice(0, 500), String(code).slice(0, 40));
+  } catch (err) {
+    console.error('[gearvault] Не удалось записать в журнал модерации:', err.message);
+  }
+}
+
 function getCategories() {
   return db.prepare('SELECT * FROM categories ORDER BY id').all();
 }
@@ -476,6 +487,38 @@ app.get('/game/:slug', (req, res) => {
     params.push(section);
   }
 
+  // Фильтры по характеристикам — только поля из описания раздела (allow-list),
+  // путь в JSON передаётся параметром, а не склейкой строки.
+  const filterFields = section ? listingFields.filterFieldsFor(game.slug, section) : [];
+  const activeFilters = {};
+  for (const f of filterFields) {
+    const raw = req.query[`f_${f.key}`];
+    if (typeof raw !== 'string' || !raw.trim()) continue;
+    const value = raw.trim();
+    const path = `$.${f.key}`;
+    if (f.type === 'select' && f.options.includes(value)) {
+      query += ' AND json_extract(p.attributes, ?) = ?';
+      params.push(path, value);
+      activeFilters[f.key] = value;
+    } else if (f.type === 'bool' && value === '1') {
+      query += ' AND json_extract(p.attributes, ?) = 1';
+      params.push(path);
+      activeFilters[f.key] = '1';
+    } else if (f.type === 'number' && Number.isFinite(Number(value))) {
+      query += ' AND json_extract(p.attributes, ?) >= ?';
+      params.push(path, Number(value));
+      activeFilters[f.key] = value;
+    }
+  }
+  if (section === 'accounts') {
+    const itemsMin = Number(req.query.items_min);
+    if (req.query.items_min && Number.isFinite(itemsMin)) {
+      query += ' AND p.items_count >= ?';
+      params.push(itemsMin);
+      activeFilters.items_min = String(itemsMin);
+    }
+  }
+
   const sortMap = {
     price_asc: 'p.price ASC',
     price_desc: 'p.price DESC',
@@ -493,6 +536,8 @@ app.get('/game/:slug', (req, res) => {
     activeSection: section,
     activeSort: sort,
     productCount: products.length,
+    filterFields,
+    activeFilters,
   });
 });
 
@@ -530,6 +575,7 @@ app.get('/sell', requireAuth, (req, res) => {
     error: null,
     formValues: preselectedCategory ? { category: preselectedCategory.slug } : {},
     selectedGame: preselectedGame,
+    fieldsConfig: listingFields.clientConfig(),
   });
 });
 
@@ -547,6 +593,7 @@ app.post('/sell', requireAuth, handleProductUpload, verifyCsrf, (req, res) => {
       error: message,
       formValues: req.body,
       selectedGame,
+      fieldsConfig: listingFields.clientConfig(),
     });
   };
 
@@ -569,30 +616,49 @@ app.post('/sell', requireAuth, handleProductUpload, verifyCsrf, (req, res) => {
   if (!Number.isFinite(price) || price <= 0 || price > 10_000_000) return fail('Укажите корректную цену');
   if (!Number.isInteger(stock) || stock < 1 || stock > 9999) return fail('Укажите корректное количество (целое число от 1)');
 
-  // Для аккаунтов покупателю важно быстро опознать товар: сколько скинов/предметов
-  // и 2-3 приметных названия — это же участвует в общем поиске по сайту.
+  // Скины/предметы на аккаунте: поля есть только в разделе «Аккаунты»;
+  // обязательны там, где аккаунт узнают по скинам (Fortnite), в остальных
+  // играх — по желанию продавца.
   let itemsCount = null;
   let notableItems = null;
   if (category.slug === 'accounts') {
-    itemsCount = Number(req.body.items_count);
-    if (!Number.isInteger(itemsCount) || itemsCount < 1 || itemsCount > 999) {
-      return fail('Укажите количество предметов/скинов на аккаунте (целое число от 1 до 999)');
+    const required = listingFields.skinsRequired(selectedGame.slug, category.slug);
+    const rawCount = String(req.body.items_count || '').trim();
+    if (rawCount || required) {
+      itemsCount = Number(rawCount);
+      if (!Number.isInteger(itemsCount) || itemsCount < 1 || itemsCount > 9999) {
+        return fail('Укажите количество скинов/предметов на аккаунте (целое число от 1 до 9999)');
+      }
     }
-    const rawItems = (req.body.notable_items || '').split(',').map((s) => s.trim()).filter(Boolean);
-    if (rawItems.length < 2) {
-      return fail('Укажите минимум 2 приметных названия предмета/скина через запятую — по ним покупатель узнаёт аккаунт');
+    const rawItems = String(req.body.notable_items || '').split(',').map((x) => x.trim()).filter(Boolean);
+    if (required && rawItems.length < 2) {
+      return fail('Для аккаунтов Fortnite укажите минимум 2 приметных скина через запятую — по ним покупатель узнаёт аккаунт');
     }
-    if (rawItems.length > 8 || rawItems.some((s) => s.length > 60)) {
-      return fail('До 8 названий, каждое не длиннее 60 символов');
+    if (rawItems.length > 12 || rawItems.some((x) => x.length > 60)) {
+      return fail('До 12 названий, каждое не длиннее 60 символов');
     }
-    notableItems = rawItems.join(', ');
+    notableItems = rawItems.length ? rawItems.join(', ') : null;
+  }
+
+  // Характеристики игры/раздела — только ключи из описания (allow-list)
+  const { values: attributes, error: attrError } = listingFields.parseAttributes(req.body, selectedGame.slug, category.slug);
+  if (attrError) return fail(attrError);
+
+  // Контакты и сторонние площадки нельзя прятать в текст объявления
+  const textsToCheck = [title, description, notableItems || '', ...Object.values(attributes).filter((v) => typeof v === 'string')];
+  for (const t of textsToCheck) {
+    const verdict = t ? checkMessage(t) : { blocked: false };
+    if (verdict.blocked) {
+      logModeration(req.session.userId, null, 'listing', t, verdict.code || 'blocked');
+      return fail('В объявлении нельзя указывать контакты и сторонние площадки: ' + verdict.reason);
+    }
   }
 
   const imageSeed = crypto.randomBytes(6).toString('hex');
 
   const info = db.prepare(`
-    INSERT INTO products (category_id, game_id, seller_id, title, description, price, rarity, image_seed, stock, items_count, notable_items)
-    VALUES (@category_id, @game_id, @seller_id, @title, @description, @price, @rarity, @image_seed, @stock, @items_count, @notable_items)
+    INSERT INTO products (category_id, game_id, seller_id, title, description, price, rarity, image_seed, stock, items_count, notable_items, attributes)
+    VALUES (@category_id, @game_id, @seller_id, @title, @description, @price, @rarity, @image_seed, @stock, @items_count, @notable_items, @attributes)
   `).run({
     category_id: category.id,
     game_id: selectedGame.id,
@@ -605,6 +671,7 @@ app.post('/sell', requireAuth, handleProductUpload, verifyCsrf, (req, res) => {
     stock,
     items_count: itemsCount,
     notable_items: notableItems,
+    attributes: Object.keys(attributes).length ? JSON.stringify(attributes) : null,
   });
 
   if (req.files && req.files.length) {
@@ -640,6 +707,7 @@ app.get('/product/:id', (req, res) => {
 
   res.render('product', {
     product,
+    attributes: listingFields.describeAttributes(product.attributes, product.game_slug, product.category_slug),
     images: getProductImages(product.id),
     similar,
     messages,
@@ -666,19 +734,28 @@ app.post('/product/:id/message', requireAuth, messageLimiter, verifyCsrf, asyncH
     return res.redirect(`/product/${product.id}?chatError=` + encodeURIComponent('Сообщение не может быть пустым или длиннее 500 символов') + '#chat');
   }
 
-  // Однозначные случаи (ссылки, названия площадок, мессенджеры) — блокируем сразу, без ИИ
-  const singleCheck = checkMessage(bodyText);
-  if (singleCheck.blocked) {
-    return res.redirect(`/product/${product.id}?chatError=` + encodeURIComponent(singleCheck.reason) + '#chat');
-  }
+  const rejectMessage = (reason, code) => {
+    logModeration(req.session.userId, product.id, 'chat', bodyText, code || 'blocked');
+    return res.redirect(`/product/${product.id}?chatError=` + encodeURIComponent(reason) + '#chat');
+  };
 
-  const recentMessages = db.prepare(`
-    SELECT body FROM messages
-    WHERE product_id = ? AND sender_id = ? AND created_at >= datetime('now', '-10 minutes')
-    ORDER BY created_at ASC
-    LIMIT 6
-  `).all(product.id, req.session.userId);
-  const recentBodies = recentMessages.map(m => m.body);
+  // Однозначные случаи (ссылки, ники, телефоны, названия площадок и
+  // мессенджеров) — блокируем сразу, без ИИ
+  const singleCheck = checkMessage(bodyText);
+  if (singleCheck.blocked) return rejectMessage(singleCheck.reason, singleCheck.code);
+
+  // Последние сообщения этого же человека в этом чате (в хронологическом
+  // порядке) — чтобы ловить номер или ник, который пишут по частям
+  const recentBodies = db.prepare(`
+    SELECT body FROM (
+      SELECT id, body FROM messages
+      WHERE product_id = ? AND sender_id = ? AND created_at >= datetime('now', '-10 minutes')
+      ORDER BY id DESC LIMIT 8
+    ) ORDER BY id ASC
+  `).all(product.id, req.session.userId).map((m) => m.body);
+
+  const conversationCheck = checkConversation(bodyText, recentBodies);
+  if (conversationCheck.blocked) return rejectMessage(conversationCheck.reason, conversationCheck.code);
 
   // Неоднозначный случай — "похоже на номер по частям". Тут не баним сразу,
   // а отдаём на контекстную проверку ИИ, которая смотрит на смысл переписки,
@@ -687,17 +764,13 @@ app.post('/product/:id/message', requireAuth, messageLimiter, verifyCsrf, asyncH
     const aiVerdict = await reviewPossiblePhoneSplit({ recentBodies, newMessage: bodyText });
 
     if (aiVerdict) {
-      if (aiVerdict.blocked) {
-        return res.redirect(`/product/${product.id}?chatError=` + encodeURIComponent(aiVerdict.reason) + '#chat');
-      }
+      if (aiVerdict.blocked) return rejectMessage(aiVerdict.reason, 'ai');
       // ИИ явно решил, что это не попытка передать контакт — пропускаем дальше
     } else {
       // ИИ недоступен (нет ключа/сбой) — используем резервную эвристику,
       // чтобы не остаться совсем без защиты
       const fallback = checkPhoneSplitting(bodyText, recentBodies);
-      if (fallback.blocked) {
-        return res.redirect(`/product/${product.id}?chatError=` + encodeURIComponent(fallback.reason) + '#chat');
-      }
+      if (fallback.blocked) return rejectMessage(fallback.reason, 'phone_split');
     }
   }
 
@@ -893,11 +966,25 @@ app.get('/admin/users', requireAuth, requireAdmin, (req, res) => {
     `).all();
   }
   const bannedEmails = db.prepare('SELECT * FROM banned_emails ORDER BY created_at DESC').all();
+  const moderationLog = db.prepare(`
+    SELECT m.*, u.email AS user_email, u.display_name AS user_name, ${USER_BANNED_SQL} AS user_banned,
+           p.title AS product_title
+    FROM moderation_log m
+    LEFT JOIN users u ON u.id = m.user_id
+    LEFT JOIN products p ON p.id = m.product_id
+    ORDER BY m.id DESC LIMIT 100
+  `).all();
 
   res.render('admin-users', {
     categories: getCategories(),
     users,
     bannedEmails,
+    moderationLog,
+    moderationLabels: {
+      link: 'ссылка', site: 'сторонняя площадка', messenger: 'мессенджер', payment: 'оплата в обход',
+      app: 'приложение', handle: 'ник', contact: 'контакт', phone: 'телефон', card: 'карта/реквизиты',
+      email: 'почта', phone_split: 'телефон по частям', handle_split: 'ник по частям', ai: 'ИИ-модерация',
+    },
     q,
     notice: typeof req.query.notice === 'string' ? req.query.notice.slice(0, 200) : null,
     error: typeof req.query.error === 'string' ? req.query.error.slice(0, 200) : null,

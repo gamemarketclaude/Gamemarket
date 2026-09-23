@@ -1,5 +1,6 @@
 // Форма "Выставить товар":
-//  1) показывает поля, обязательные только для категории "Аккаунты";
+//  1) поля под игру и раздел: скины (только «Аккаунты», обязательны для
+//     Fortnite) и характеристики — Prime/ранг/уровень и т.п.;
 //  2) фото добавляются плитками: пустой квадратик с «+» -> выбрали фото ->
 //     появляется следующий «+», и так до лимита (10). Фото можно удалить (×)
 //     или сделать обложкой (★). На телефоне «+» открывает галерею/камеру.
@@ -12,23 +13,122 @@
   const form = document.querySelector('[data-sell-form]');
   if (!form) return;
 
-  // ---------- Поля для «Аккаунтов» ----------
+  // ---------- Поля под игру и раздел ----------
   const categorySelect = form.querySelector('[data-sell-category]');
+  const gameInput = form.querySelector('#game_id');
   const accountsFields = form.querySelector('[data-sell-accounts-fields]');
   const itemsCountInput = accountsFields ? accountsFields.querySelector('input[name="items_count"]') : null;
   const notableItemsInput = accountsFields ? accountsFields.querySelector('input[name="notable_items"]') : null;
+  const extraBox = form.querySelector('[data-sell-extra]');
+  const extraGrid = form.querySelector('[data-sell-extra-grid]');
 
+  function readJson(id) {
+    const el = document.getElementById(id);
+    try { return el ? JSON.parse(el.textContent) : null; } catch (e) { return null; }
+  }
+  const config = readJson('listing-fields-config') || { common: {}, games: {}, skinsRequired: [] };
+  // Уже введённые значения (после ошибки формы или при переключении раздела)
+  const values = readJson('listing-fields-values') || {};
+
+  function currentGame() { return gameInput ? gameInput.dataset.slug || '' : ''; }
+  function currentCategory() { return categorySelect ? categorySelect.value : ''; }
+
+  function fieldsFor(game, category) {
+    const own = (config.games[game] && config.games[game][category]) || [];
+    return own.concat(config.common[category] || []);
+  }
+
+  // Скины: блок только для «Аккаунтов»; обязателен только для Fortnite
   function syncAccountsFields() {
-    const isAccounts = categorySelect.value === 'accounts';
+    if (!accountsFields) return;
+    const isAccounts = currentCategory() === 'accounts';
+    const required = isAccounts && config.skinsRequired.indexOf(currentGame()) !== -1;
     accountsFields.hidden = !isAccounts;
-    if (itemsCountInput) itemsCountInput.required = isAccounts;
-    if (notableItemsInput) notableItemsInput.required = isAccounts;
+    if (itemsCountInput) itemsCountInput.required = required;
+    if (notableItemsInput) notableItemsInput.required = required;
+    accountsFields.querySelectorAll('[data-skins-optional]').forEach((el) => {
+      el.textContent = required ? '— обязательно' : '— необязательно';
+      el.classList.toggle('is-required', required);
+    });
   }
 
-  if (categorySelect && accountsFields) {
-    categorySelect.addEventListener('change', syncAccountsFields);
-    syncAccountsFields();
+  function rememberValues() {
+    extraGrid.querySelectorAll('[name^="attr_"]').forEach((el) => {
+      values[el.name] = el.type === 'checkbox' ? (el.checked ? 'on' : '') : el.value;
+    });
   }
+
+  function makeField(f) {
+    const name = 'attr_' + f.key;
+    const saved = values[name];
+    const label = document.createElement('label');
+    label.className = 'sell-form__extra-field' + (f.type === 'bool' ? ' sell-form__extra-field--check' : '');
+
+    const caption = document.createElement('span');
+    caption.textContent = f.label + (f.required ? ' *' : '');
+
+    let control;
+    if (f.type === 'select') {
+      control = document.createElement('select');
+      const empty = document.createElement('option');
+      empty.value = '';
+      empty.textContent = f.required ? 'Выберите…' : 'Не указано';
+      control.appendChild(empty);
+      f.options.forEach((o) => {
+        const opt = document.createElement('option');
+        opt.value = o;
+        opt.textContent = o;
+        if (saved === o) opt.selected = true;
+        control.appendChild(opt);
+      });
+    } else if (f.type === 'bool') {
+      control = document.createElement('input');
+      control.type = 'checkbox';
+      control.checked = saved === 'on' || saved === '1' || saved === true;
+    } else {
+      control = document.createElement('input');
+      control.type = f.type === 'number' ? 'number' : 'text';
+      if (f.type === 'number') {
+        control.min = f.min != null ? f.min : 0;
+        if (f.max != null) control.max = f.max;
+        control.step = 'any';
+        control.inputMode = 'numeric';
+      } else {
+        control.maxLength = f.maxLength || 80;
+      }
+      if (f.placeholder) control.placeholder = f.placeholder;
+      if (saved) control.value = saved;
+    }
+    control.name = name;
+    if (f.required) control.required = true;
+
+    if (f.type === 'bool') {
+      label.appendChild(control);
+      label.appendChild(caption);
+    } else {
+      label.appendChild(caption);
+      label.appendChild(control);
+    }
+    return label;
+  }
+
+  function renderExtraFields() {
+    if (!extraGrid) return;
+    rememberValues();
+    extraGrid.innerHTML = '';
+    const fields = currentCategory() ? fieldsFor(currentGame(), currentCategory()) : [];
+    fields.forEach((f) => extraGrid.appendChild(makeField(f)));
+    extraBox.hidden = fields.length === 0;
+  }
+
+  function sync() {
+    syncAccountsFields();
+    renderExtraFields();
+  }
+
+  if (categorySelect) categorySelect.addEventListener('change', sync);
+  if (gameInput) gameInput.addEventListener('change', sync);
+  sync();
 
   // ---------- Фото плитками ----------
   const nativeInput = form.querySelector('[data-sell-images]');

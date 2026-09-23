@@ -50,7 +50,7 @@
         <% if (product.items_count || product.notable_items) { %>
           <div class="product__attributes">
             <% if (product.items_count) { %>
-              <span class="badge"><%= product.items_count %> предметов на аккаунте</span>
+              <span class="badge"><%= product.items_count %> <%= plural(product.items_count, 'скин/предмет', 'скина/предмета', 'скинов/предметов') %> на аккаунте</span>
             <% } %>
             <% if (product.notable_items) { %>
               <div class="product__notable">
@@ -60,6 +60,14 @@
               </div>
             <% } %>
           </div>
+        <% } %>
+
+        <% if (attributes.length) { %>
+          <dl class="specs">
+            <% attributes.forEach(function(a) { %>
+              <div class="specs__row"><dt><%= a.label %></dt><dd><%= a.value %></dd></div>
+            <% }) %>
+          </dl>
         <% } %>
 
         <div class="product__seller-card">

@@ -30,7 +30,7 @@
               >
               <div class="game-search__dropdown" data-game-search-dropdown hidden></div>
             </div>
-            <input type="hidden" name="game_id" id="game_id" value="<%= selectedGame ? selectedGame.id : '' %>">
+            <input type="hidden" name="game_id" id="game_id" value="<%= selectedGame ? selectedGame.id : '' %>" data-slug="<%= selectedGame ? selectedGame.slug : '' %>">
           </label>
           <label>Категория
             <select name="category" required data-sell-category>
@@ -51,14 +51,27 @@
         </label>
 
         <div class="sell-form__accounts-fields" data-sell-accounts-fields hidden>
-          <label>Сколько предметов/скинов на аккаунте
-            <input type="number" name="items_count" value="<%= formValues.items_count || '' %>" min="1" max="999" step="1" placeholder="Например, 47">
+          <label><span class="sell-form__label-row">Сколько скинов/предметов на аккаунте <span class="sell-form__optional" data-skins-optional>— необязательно</span></span>
+            <input type="number" name="items_count" value="<%= formValues.items_count || '' %>" min="1" max="9999" step="1" placeholder="Например, 47">
           </label>
-          <label>Приметные названия (2-3 штуки, через запятую)
-            <input type="text" name="notable_items" value="<%= formValues.notable_items || '' %>" maxlength="300" placeholder="Например: Сирена, Ferrari, Джон Уик">
+          <label><span class="sell-form__label-row">Приметные скины через запятую <span class="sell-form__optional" data-skins-optional>— необязательно</span></span>
+            <input type="text" name="notable_items" value="<%= formValues.notable_items || '' %>" maxlength="400" placeholder="Например: Сирена, Ferrari, Джон Уик">
           </label>
-          <p class="sell-form__hint">По этим названиям покупатели смогут найти аккаунт через общий поиск на сайте.</p>
+          <p class="sell-form__hint" data-skins-hint>По этим названиям покупатели найдут аккаунт через «Поиск по описанию и скинам».</p>
         </div>
+
+        <%# Характеристики под игру и раздел (Prime, ранг, уровень, платформа…) рисует sell-form.js по описанию из lib/listingFields.js %>
+        <div class="sell-form__extra" data-sell-extra hidden>
+          <div class="sell-form__extra-title">Характеристики</div>
+          <div class="sell-form__extra-grid" data-sell-extra-grid></div>
+        </div>
+        <%
+          const savedAttrs = {};
+          Object.keys(formValues || {}).forEach(function(k) { if (k.indexOf('attr_') === 0) savedAttrs[k] = formValues[k]; });
+          const safeJson = function(v) { return JSON.stringify(v).replace(/</g, '\\u003c'); };
+        %>
+        <script type="application/json" id="listing-fields-config"><%- safeJson(fieldsConfig) %></script>
+        <script type="application/json" id="listing-fields-values"><%- safeJson(savedAttrs) %></script>
 
         <div class="sell-form__row">
           <label>Редкость

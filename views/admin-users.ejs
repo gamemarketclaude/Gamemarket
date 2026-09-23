@@ -76,6 +76,41 @@
     </section>
 
     <section class="admin__panel">
+      <h2>Заблокированные сообщения (последние <%= moderationLog.length %>)</h2>
+      <p class="admin__hint">Что фильтр не пропустил в чат и в объявления: попытки передать контакты, позвать на другие площадки, заплатить в обход. Если человек пробует снова и снова — его можно забанить прямо отсюда.</p>
+      <% if (moderationLog.length === 0) { %>
+        <p class="admin__hint">Пока ничего не блокировалось.</p>
+      <% } else { %>
+        <div class="admin__table-wrap">
+          <table class="admin__table">
+            <thead><tr><th>Когда</th><th>Кто</th><th>Где</th><th>Причина</th><th>Текст</th><th></th></tr></thead>
+            <tbody>
+              <% moderationLog.forEach(function(m) { %>
+                <tr class="<%= m.user_banned ? 'is-banned' : '' %>">
+                  <td><%= m.created_at %></td>
+                  <td><%= m.user_email || '—' %></td>
+                  <td><% if (m.product_id) { %><a href="/product/<%= m.product_id %>#chat"><%= m.product_title || ('товар #' + m.product_id) %></a><% } else { %>объявление<% } %></td>
+                  <td><%= moderationLabels[m.code] || moderationLabels[String(m.code).replace(/_split$/, '')] || m.code %></td>
+                  <td class="admin__log-text"><%= m.body %></td>
+                  <td>
+                    <% if (m.user_email && !m.user_banned && m.user_id !== currentUser.id) { %>
+                      <form method="post" action="/admin/ban">
+                        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                        <input type="hidden" name="email" value="<%= m.user_email %>">
+                        <input type="hidden" name="reason" value="Обход площадки в чате">
+                        <button type="submit" class="btn btn--danger btn--sm">Забанить</button>
+                      </form>
+                    <% } %>
+                  </td>
+                </tr>
+              <% }) %>
+            </tbody>
+          </table>
+        </div>
+      <% } %>
+    </section>
+
+    <section class="admin__panel">
       <h2>Чёрный список почт (<%= bannedEmails.length %>)</h2>
       <% if (bannedEmails.length === 0) { %>
         <p class="admin__hint">Пока никто не забанен.</p>

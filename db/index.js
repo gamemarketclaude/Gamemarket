@@ -10,10 +10,44 @@ const dbPath = path.join(__dirname, 'database.sqlite');
 // База от старой версии сайта (например, со входом по логину вместо почты)
 // несовместима с текущим кодом. Не удаляем её, а откладываем в сторону как
 // резервную копию и создаём новую — так обновление не падает с ошибкой.
+// Обновления, которые можно применить к существующей базе без потери данных:
+// ключ — версия, С КОТОРОЙ обновляем.
+const MIGRATIONS = {
+  2: `
+    ALTER TABLE products ADD COLUMN attributes TEXT;
+    CREATE TABLE IF NOT EXISTS moderation_log (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER REFERENCES users(id),
+      product_id INTEGER REFERENCES products(id),
+      source TEXT NOT NULL,
+      body TEXT NOT NULL,
+      code TEXT NOT NULL,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+  `,
+};
+
 if (fs.existsSync(dbPath)) {
   const probe = new DatabaseSync(dbPath);
-  const { user_version: version } = probe.prepare('PRAGMA user_version').get();
+  let { user_version: version } = probe.prepare('PRAGMA user_version').get();
+  // Сначала пробуем обновить базу «на месте» — пользователи и объявления сохраняются
+  while (version !== SCHEMA_VERSION && MIGRATIONS[version]) {
+    probe.exec('BEGIN');
+    try {
+      probe.exec(MIGRATIONS[version]);
+      probe.exec(`PRAGMA user_version = ${version + 1}`);
+      probe.exec('COMMIT');
+      console.log(`[GearVault] База обновлена: версия ${version} → ${version + 1}`);
+      version += 1;
+    } catch (err) {
+      probe.exec('ROLLBACK');
+      console.error('[GearVault] Не удалось обновить базу на месте:', err.message);
+      break;
+    }
+  }
   probe.close();
+  // Если обновить на месте нельзя (слишком старая версия) — откладываем
+  // старый файл как резервную копию и создаём новую базу
   if (version !== SCHEMA_VERSION) {
     const stamp = new Date().toISOString().replace(/[:.]/g, '-');
     const backupPath = path.join(__dirname, `database.backup-v${version}-${stamp}.sqlite`);

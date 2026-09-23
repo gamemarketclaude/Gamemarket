@@ -48,7 +48,12 @@
         return;
       }
       input.value = game.name_ru + ' (' + game.name_en + ')';
-      if (hiddenId) hiddenId.value = game.id;
+      if (hiddenId) {
+        hiddenId.value = game.id;
+        // Форма объявления перестраивает поля под игру (sell-form.js)
+        hiddenId.dataset.slug = game.slug;
+        hiddenId.dispatchEvent(new Event('change'));
+      }
       closeDropdown();
     }
 
@@ -64,7 +69,11 @@
     }, 200);
 
     input.addEventListener('input', () => {
-      if (hiddenId) hiddenId.value = '';
+      if (hiddenId && hiddenId.value) {
+        hiddenId.value = '';
+        hiddenId.dataset.slug = '';
+        hiddenId.dispatchEvent(new Event('change'));
+      }
       fetchSuggestions(input.value);
     });
 

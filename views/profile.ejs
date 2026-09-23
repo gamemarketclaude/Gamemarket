@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <title>Личный кабинет — GearVault</title>
+  <%- include('partials/head') %>
+</head>
+<body>
+  <%- include('partials/header') %>
+
+  <main class="layout layout--single">
+    <div class="profile-head">
+      <div class="profile-head__avatar"><%= currentUser.display_name.charAt(0).toUpperCase() %></div>
+      <div>
+        <h1><%= currentUser.display_name %></h1>
+        <div class="profile-head__meta">★ <%= currentUser.rating %> · <%= currentUser.deals_count %> завершённых сделок · <%= currentUser.email %></div>
+      </div>
+      <div class="profile-head__stats">
+        <div><span class="mono"><%= totalSpent %> ₽</span><label>потрачено</label></div>
+        <div><span class="mono"><%= totalEarned %> ₽</span><label>заработано</label></div>
+      </div>
+      <%# На телефоне кнопки «Выйти» нет в шапке (не помещается) — она здесь %>
+      <form action="/logout" method="post" class="profile-head__logout">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <button type="submit" class="btn btn--ghost btn--sm">Выйти из аккаунта</button>
+      </form>
+    </div>
+
+    <div class="tabs">
+      <a href="/profile?tab=purchases" class="tabs__item <%= tab === 'purchases' ? 'is-active' : '' %>">Мои покупки (<%= purchases.length %>)</a>
+      <a href="/profile?tab=sales" class="tabs__item <%= tab === 'sales' ? 'is-active' : '' %>">Мои продажи (<%= sales.length %>)</a>
+      <a href="/profile?tab=listings" class="tabs__item <%= tab === 'listings' ? 'is-active' : '' %>">Мои объявления (<%= myListings.length %>)</a>
+    </div>
+
+    <% if (tab === 'purchases') { %>
+      <% if (purchases.length === 0) { %>
+        <div class="empty-state">
+          <p>Вы ещё ничего не покупали.</p>
+          <a href="/" class="btn btn--accent" style="margin-top:12px; display:inline-block;">Перейти в каталог</a>
+        </div>
+      <% } else { %>
+        <div class="order-list">
+          <% purchases.forEach(function(o) { %>
+            <div class="order-row">
+              <div class="order-row__thumb"><% if (o.cover) { %><img src="/public/uploads/products/<%= o.cover %>" alt=""><% } else { %><%- include('partials/art', { seed: o.image_seed || 'gv-default', rarity: 'common', icon: '' }) %><% } %></div>
+              <div class="order-row__info">
+                <div class="order-row__title"><%= o.product_title %></div>
+                <div class="order-row__meta">Заказ #<%= o.id %> · <%= o.created_at %></div>
+              </div>
+              <span class="badge badge--<%= o.status %>"><%= o.status === 'completed' ? 'Завершена' : o.status %></span>
+              <span class="order-row__price mono"><%= o.price %> ₽</span>
+            </div>
+          <% }) %>
+        </div>
+      <% } %>
+    <% } else if (tab === 'sales') { %>
+      <% if (sales.length === 0) { %>
+        <div class="empty-state">
+          <p>У вас пока нет продаж.</p>
+        </div>
+      <% } else { %>
+        <div class="order-list">
+          <% sales.forEach(function(o) { %>
+            <div class="order-row">
+              <div class="order-row__thumb"><% if (o.cover) { %><img src="/public/uploads/products/<%= o.cover %>" alt=""><% } else { %><%- include('partials/art', { seed: o.image_seed || 'gv-default', rarity: 'common', icon: '' }) %><% } %></div>
+              <div class="order-row__info">
+                <div class="order-row__title"><%= o.product_title %></div>
+                <div class="order-row__meta">Покупатель: <%= o.buyer_name %> · <%= o.created_at %></div>
+              </div>
+              <span class="badge badge--<%= o.status %>"><%= o.status === 'completed' ? 'Завершена' : o.status %></span>
+              <span class="order-row__price mono">+<%= o.price %> ₽</span>
+            </div>
+          <% }) %>
+        </div>
+      <% } %>
+    <% } else { %>
+      <% if (myListings.length === 0) { %>
+        <div class="empty-state">
+          <%- include('partials/art', { seed: 'empty-listings', rarity: 'common', icon: '' }) %>
+          <p>У вас пока нет активных объявлений.</p>
+          <a href="/sell" class="btn btn--accent" style="margin-top:12px; display:inline-block;">Выставить товар</a>
+        </div>
+      <% } else { %>
+        <div class="grid">
+          <% myListings.forEach(function(p) { %>
+            <%- include('partials/card', { p: p }) %>
+          <% }) %>
+        </div>
+      <% } %>
+    <% } %>
+  </main>
+
+  <%- include('partials/footer') %>
+</body>
+</html>

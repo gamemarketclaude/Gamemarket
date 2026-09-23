@@ -1,0 +1,23 @@
+[Unit]
+Description=GearVault marketplace (Node.js/Express)
+After=network.target
+
+[Service]
+Type=simple
+User=gearvault
+Group=gearvault
+WorkingDirectory=/opt/gearvault
+ExecStart=/usr/bin/node --disable-warning=ExperimentalWarning server.js
+Restart=on-failure
+RestartSec=5
+EnvironmentFile=/opt/gearvault/.env
+Environment=NODE_ENV=production
+
+# Небольшая защита процесса на уровне systemd
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ReadWritePaths=/opt/gearvault/db /opt/gearvault/public/uploads
+
+[Install]
+WantedBy=multi-user.target

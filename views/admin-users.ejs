@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <title>Пользователи — GearVault</title>
+  <%- include('partials/head') %>
+</head>
+<body>
+  <%- include('partials/header') %>
+
+  <main class="layout layout--single admin">
+    <h1 class="admin__title">Пользователи и баны</h1>
+
+    <% if (notice) { %><div class="form-notice"><%= notice %></div><% } %>
+    <% if (error) { %><div class="form-error"><%= error %></div><% } %>
+
+    <section class="admin__panel">
+      <h2>Забанить почту</h2>
+      <p class="admin__hint">
+        С забаненной почтой нельзя ни войти, ни зарегистрироваться заново — в том числе написав её
+        иначе (с точками, заглавными буквами, «+что-то» перед @). Объявления забаненного продавца
+        пропадают из каталога. Почту можно забанить, даже если на неё ещё никто не регистрировался.
+      </p>
+      <form method="post" action="/admin/ban" class="admin__ban-form">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <input type="email" name="email" placeholder="почта@пример.ru" maxlength="254" required>
+        <input type="text" name="reason" placeholder="Причина (видна только админам)" maxlength="200">
+        <button type="submit" class="btn btn--danger">Забанить</button>
+      </form>
+    </section>
+
+    <section class="admin__panel">
+      <div class="admin__panel-head">
+        <h2>Пользователи</h2>
+        <form method="get" action="/admin/users" class="admin__search">
+          <input type="text" name="q" value="<%= q %>" placeholder="Поиск по почте или имени" maxlength="100">
+          <button type="submit" class="btn btn--ghost">Найти</button>
+        </form>
+      </div>
+      <div class="admin__table-wrap">
+        <table class="admin__table">
+          <thead>
+            <tr><th>Почта</th><th>Имя</th><th>Сделок</th><th>Зарегистрирован</th><th></th></tr>
+          </thead>
+          <tbody>
+            <% users.forEach(function(u) { %>
+              <tr class="<%= u.banned ? 'is-banned' : '' %>">
+                <td><%= u.email %></td>
+                <td><%= u.display_name %></td>
+                <td class="mono"><%= u.deals_count %></td>
+                <td><%= u.created_at %></td>
+                <td>
+                  <% if (u.id === currentUser.id) { %>
+                    <span class="admin__me">это вы</span>
+                  <% } else if (u.banned) { %>
+                    <form method="post" action="/admin/unban">
+                      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                      <input type="hidden" name="email" value="<%= u.email %>">
+                      <button type="submit" class="btn btn--ghost btn--sm">Разбанить</button>
+                    </form>
+                  <% } else { %>
+                    <form method="post" action="/admin/ban">
+                      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                      <input type="hidden" name="email" value="<%= u.email %>">
+                      <button type="submit" class="btn btn--danger btn--sm">Забанить</button>
+                    </form>
+                  <% } %>
+                </td>
+              </tr>
+            <% }) %>
+            <% if (users.length === 0) { %>
+              <tr><td colspan="5" class="admin__empty">Никого не найдено</td></tr>
+            <% } %>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="admin__panel">
+      <h2>Чёрный список почт (<%= bannedEmails.length %>)</h2>
+      <% if (bannedEmails.length === 0) { %>
+        <p class="admin__hint">Пока никто не забанен.</p>
+      <% } else { %>
+        <div class="admin__table-wrap">
+          <table class="admin__table">
+            <thead><tr><th>Почта</th><th>Причина</th><th>Когда</th><th></th></tr></thead>
+            <tbody>
+              <% bannedEmails.forEach(function(b) { %>
+                <tr>
+                  <td><%= b.email_normalized %></td>
+                  <td><%= b.reason || '—' %></td>
+                  <td><%= b.created_at %></td>
+                  <td>
+                    <form method="post" action="/admin/unban">
+                      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                      <input type="hidden" name="email" value="<%= b.email_normalized %>">
+                      <button type="submit" class="btn btn--ghost btn--sm">Разбанить</button>
+                    </form>
+                  </td>
+                </tr>
+              <% }) %>
+            </tbody>
+          </table>
+        </div>
+      <% } %>
+    </section>
+  </main>
+
+  <%- include('partials/footer') %>
+</body>
+</html>

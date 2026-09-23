@@ -1,0 +1,27 @@
+{
+  "name": "gearvault",
+  "version": "1.0.0",
+  "description": "GearVault — маркетплейс игровых аккаунтов, валюты, предметов, бустинга и ключей",
+  "main": "server.js",
+  "engines": {
+    "node": ">=22.13"
+  },
+  "scripts": {
+    "start": "node --disable-warning=ExperimentalWarning server.js",
+    "seed": "node --disable-warning=ExperimentalWarning db/init.js",
+    "ban": "node --disable-warning=ExperimentalWarning scripts/ban.js ban",
+    "unban": "node --disable-warning=ExperimentalWarning scripts/ban.js unban"
+  },
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "cookie-parser": "^1.4.7",
+    "cors": "^2.8.6",
+    "dotenv": "^16.4.5",
+    "ejs": "^3.1.10",
+    "express": "^4.19.2",
+    "express-rate-limit": "^8.7.0",
+    "express-session": "^1.18.0",
+    "helmet": "^8.3.0",
+    "multer": "^2.3.0"
+  }
+}

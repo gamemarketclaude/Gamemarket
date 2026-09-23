@@ -1,0 +1,8 @@
+node_modules/
+db/database.sqlite
+db/database.sqlite-journal
+db/database.sqlite-wal
+db/database.sqlite-shm
+.env
+public/uploads/
+db/database.backup-*

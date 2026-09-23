@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <title><%= game.name_ru %> — GearVault</title>
+  <%- include('partials/head') %>
+</head>
+<body>
+  <%- include('partials/header') %>
+
+  <main class="layout layout--single">
+    <div class="breadcrumbs">
+      <a href="/">Каталог</a> / <span><%= game.name_ru %></span>
+    </div>
+
+    <div class="game-head">
+      <span class="game-head__icon"><%= game.icon %></span>
+      <div>
+        <h1 class="game-head__title"><%= game.name_ru %></h1>
+        <div class="game-head__meta"><%= game.name_en %></div>
+      </div>
+      <a href="/sell?game=<%= game.slug %><%= activeSection ? '&category=' + activeSection : '' %>" class="btn btn--accent game-head__sell">Продать</a>
+    </div>
+
+    <div class="game-tabs">
+      <a href="/game/<%= game.slug %>" class="game-tabs__item <%= !activeSection ? 'is-active' : '' %>">Общее</a>
+      <% categories.forEach(function(c) { %>
+        <a href="/game/<%= game.slug %>?section=<%= c.slug %>" class="game-tabs__item <%= activeSection === c.slug ? 'is-active' : '' %>">
+          <span class="cat-nav__icon"><%= c.icon %></span><%= c.name %>
+        </a>
+      <% }) %>
+    </div>
+
+    <div class="results__head">
+      <span class="results__count"><%= productCount %> <%= plural(productCount, 'предложение', 'предложения', 'предложений') %></span>
+      <form method="get" class="game-sort">
+        <% if (activeSection) { %><input type="hidden" name="section" value="<%= activeSection %>"><% } %>
+        <select name="sort">
+          <option value="newest" <%= activeSort === 'newest' ? 'selected' : '' %>>Сначала новые</option>
+          <option value="price_asc" <%= activeSort === 'price_asc' ? 'selected' : '' %>>Цена: по возрастанию</option>
+          <option value="price_desc" <%= activeSort === 'price_desc' ? 'selected' : '' %>>Цена: по убыванию</option>
+          <option value="rating" <%= activeSort === 'rating' ? 'selected' : '' %>>Рейтинг продавца</option>
+        </select>
+        <button type="submit" class="btn btn--ghost">Применить</button>
+      </form>
+    </div>
+
+    <% if (products.length === 0) { %>
+      <div class="empty-state">
+        <%- include('partials/art', { seed: game.slug, rarity: 'common', icon: '' }) %>
+        <p>По игре «<%= game.name_ru %>» пока нет предложений в этом разделе.</p>
+        <a href="/sell?game=<%= game.slug %><%= activeSection ? '&category=' + activeSection : '' %>" class="btn btn--accent" style="margin-top:12px; display:inline-block;">Выставить первым</a>
+      </div>
+    <% } else { %>
+      <div class="grid">
+        <% products.forEach(function(p) { %>
+          <%- include('partials/card', { p: p }) %>
+        <% }) %>
+      </div>
+    <% } %>
+  </main>
+
+  <%- include('partials/footer') %>
+</body>
+</html>

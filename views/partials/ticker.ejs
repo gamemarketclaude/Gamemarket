@@ -1,0 +1,21 @@
+<div class="ticker">
+  <span class="ticker__label">Только что продано</span>
+  <div class="ticker__track">
+    <div class="ticker__group">
+      <% salesFeed.forEach(function(s) { %>
+        <span class="ticker__item">
+          <b><%= s.buyer_name %></b> купил «<%= s.product_title %>» за <span class="mono"><%= s.price %> ₽</span>
+          <i><%= s.minutes_ago %> мин назад</i>
+        </span>
+      <% }) %>
+    </div>
+    <div class="ticker__group" aria-hidden="true">
+      <% salesFeed.forEach(function(s) { %>
+        <span class="ticker__item">
+          <b><%= s.buyer_name %></b> купил «<%= s.product_title %>» за <span class="mono"><%= s.price %> ₽</span>
+          <i><%= s.minutes_ago %> мин назад</i>
+        </span>
+      <% }) %>
+    </div>
+  </div>
+</div>

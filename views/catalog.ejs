@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <title>GearVault — маркетплейс игровых ценностей</title>
+  <%- include('partials/head') %>
+</head>
+<body>
+  <%- include('partials/header') %>
+  <%- include('partials/ticker') %>
+
+  <section class="games-rail">
+    <div class="games-rail__row">
+      <% games.forEach(function(g) { %>
+        <a href="/game/<%= g.slug %>" class="games-rail__item">
+          <span class="games-rail__icon"><%= g.icon %></span>
+          <span class="games-rail__name"><%= g.name_ru %></span>
+        </a>
+      <% }) %>
+    </div>
+  </section>
+
+  <main class="layout">
+    <aside class="filters">
+      <%
+        const activeFilters = [activeCategory, min, max, itemsMin, itemsMax].filter(Boolean).length
+          + (activeSort && activeSort !== 'newest' ? 1 : 0);
+      %>
+      <%# На телефоне фильтры свёрнуты в одну строку (public/js/catalog.js), на компьютере всегда открыты %>
+      <details class="filters__details" open data-filters data-active-count="<%= activeFilters %>">
+      <summary class="filters__summary">
+        <span>Фильтры и сортировка</span>
+        <% if (activeFilters) { %><span class="filters__badge"><%= activeFilters %></span><% } %>
+      </summary>
+      <form method="get" action="/" class="filters__form" id="catalog-filters">
+        <% if (q) { %><input type="hidden" name="q" value="<%= q %>"><% } %>
+
+        <h2 class="filters__title">Фильтры</h2>
+
+        <div class="filters__group">
+          <label>Категория</label>
+          <select name="category">
+            <option value="">Все категории</option>
+            <% categories.forEach(function(c) { %>
+              <option value="<%= c.slug %>" <%= activeCategory === c.slug ? 'selected' : '' %>><%= c.icon %> <%= c.name %></option>
+            <% }) %>
+          </select>
+        </div>
+
+        <div class="filters__group">
+          <label>Цена, ₽</label>
+          <div class="filters__price-row">
+            <input type="number" name="min" placeholder="от" min="0" value="<%= min %>">
+            <input type="number" name="max" placeholder="до" min="0" value="<%= max %>">
+          </div>
+        </div>
+
+        <div class="filters__group">
+          <label>Количество скинов/предметов</label>
+          <div class="filters__price-row">
+            <input type="number" name="items_min" placeholder="от" min="0" value="<%= itemsMin %>">
+            <input type="number" name="items_max" placeholder="до" min="0" value="<%= itemsMax %>">
+          </div>
+        </div>
+
+        <div class="filters__group">
+          <label for="sort">Сортировка</label>
+          <select name="sort" id="sort">
+            <option value="newest" <%= activeSort === 'newest' ? 'selected' : '' %>>Сначала новые</option>
+            <option value="price_asc" <%= activeSort === 'price_asc' ? 'selected' : '' %>>Цена: по возрастанию</option>
+            <option value="price_desc" <%= activeSort === 'price_desc' ? 'selected' : '' %>>Цена: по убыванию</option>
+            <option value="rating" <%= activeSort === 'rating' ? 'selected' : '' %>>Рейтинг продавца</option>
+          </select>
+        </div>
+
+        <button type="submit" class="btn btn--accent btn--block">Применить</button>
+        <a href="/" class="filters__reset">Сбросить всё</a>
+      </form>
+      </details>
+    </aside>
+
+    <section class="results">
+      <%# Две строки поиска — поля привязаны к форме фильтров через атрибут form,
+          поэтому поиск учитывает и выбранные слева категорию/цену/сортировку %>
+      <div class="search-bar">
+        <label class="search-bar__field">
+          <span class="search-bar__label">Поиск по названию</span>
+          <input type="search" name="title" form="catalog-filters" value="<%= titleQuery %>" maxlength="100" placeholder="Например: аккаунт, робуксы, AK-47">
+        </label>
+        <label class="search-bar__field">
+          <span class="search-bar__label">Поиск по описанию и скинам</span>
+          <input type="search" name="desc" form="catalog-filters" value="<%= descQuery %>" maxlength="100" placeholder="Например: сирена, ferrari, джунгли">
+        </label>
+        <button type="submit" form="catalog-filters" class="btn btn--accent search-bar__btn">Найти</button>
+      </div>
+
+      <div class="results__head">
+        <h1>
+          <% if (activeCategory) { %>
+            <%= categories.find(c => c.slug === activeCategory).name %>
+          <% } else { %>
+            Все категории
+          <% } %>
+        </h1>
+        <span class="results__count"><%= productCount %> <%= plural(productCount, 'предложение', 'предложения', 'предложений') %></span>
+      </div>
+
+      <% if (products.length === 0) { %>
+        <div class="empty-state">
+          <%- include('partials/art', { seed: 'empty', rarity: 'common', icon: '' }) %>
+          <p>По вашему запросу ничего не найдено.</p>
+          <p class="empty-state__hint">Попробуйте изменить фильтры или сбросить цену.</p>
+        </div>
+      <% } else { %>
+        <div class="grid">
+          <% products.forEach(function(p) { %>
+            <%- include('partials/card', { p: p }) %>
+          <% }) %>
+        </div>
+      <% } %>
+    </section>
+  </main>
+
+  <%- include('partials/footer') %>
+  <script src="/public/js/catalog.js" defer></script>
+</body>
+</html>

@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <title>Выставить товар — GearVault</title>
+  <%- include('partials/head') %>
+</head>
+<body>
+  <%- include('partials/header') %>
+
+  <main class="layout layout--single">
+    <div class="sell-card">
+      <h1 class="auth-card__title">Выставить товар на продажу</h1>
+      <p class="sell-card__hint">Объявление появится в общем каталоге сразу после публикации.</p>
+
+      <% if (error) { %><div class="form-error"><%= error %></div><% } %>
+
+      <form method="post" action="/sell" class="sell-form" enctype="multipart/form-data" data-sell-form>
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <div class="sell-form__row">
+          <label>
+            Игра
+            <div class="game-search" data-game-search-root data-game-search-mode="select" data-game-search-target="#game_id">
+              <input
+                type="text"
+                autocomplete="off"
+                placeholder="Начните вводить — например, «бр» или «cs»"
+                value="<%= selectedGame ? (selectedGame.name_ru + ' (' + selectedGame.name_en + ')') : '' %>"
+                data-game-search-input
+                required
+              >
+              <div class="game-search__dropdown" data-game-search-dropdown hidden></div>
+            </div>
+            <input type="hidden" name="game_id" id="game_id" value="<%= selectedGame ? selectedGame.id : '' %>">
+          </label>
+          <label>Категория
+            <select name="category" required data-sell-category>
+              <option value="" disabled <%= !formValues.category ? 'selected' : '' %>>Выберите категорию</option>
+              <% categories.forEach(function(c) { %>
+                <option value="<%= c.slug %>" <%= formValues.category === c.slug ? 'selected' : '' %>><%= c.icon %> <%= c.name %></option>
+              <% }) %>
+            </select>
+          </label>
+        </div>
+
+        <label>Название товара
+          <input type="text" name="title" value="<%= formValues.title || '' %>" maxlength="120" placeholder="Например, «Аккаунт 4 сезона, топ-500»" required>
+        </label>
+
+        <label>Описание
+          <textarea name="description" maxlength="2000" rows="5" placeholder="Опишите товар: состояние, что входит, условия передачи..." required><%= formValues.description || '' %></textarea>
+        </label>
+
+        <div class="sell-form__accounts-fields" data-sell-accounts-fields hidden>
+          <label>Сколько предметов/скинов на аккаунте
+            <input type="number" name="items_count" value="<%= formValues.items_count || '' %>" min="1" max="999" step="1" placeholder="Например, 47">
+          </label>
+          <label>Приметные названия (2-3 штуки, через запятую)
+            <input type="text" name="notable_items" value="<%= formValues.notable_items || '' %>" maxlength="300" placeholder="Например: Сирена, Ferrari, Джон Уик">
+          </label>
+          <p class="sell-form__hint">По этим названиям покупатели смогут найти аккаунт через общий поиск на сайте.</p>
+        </div>
+
+        <div class="sell-form__row">
+          <label>Редкость
+            <select name="rarity">
+              <% rarities.forEach(function(r) { %>
+                <option value="<%= r %>" <%= formValues.rarity === r ? 'selected' : '' %>><%= rarityLabels[r] %></option>
+              <% }) %>
+            </select>
+          </label>
+          <label>Цена, ₽
+            <input type="number" name="price" value="<%= formValues.price || '' %>" min="1" max="10000000" step="1" required>
+          </label>
+          <label>Количество
+            <input type="number" name="stock" value="<%= formValues.stock || 1 %>" min="1" max="9999" step="1" required>
+          </label>
+        </div>
+
+        <div class="sell-form__photos">
+          <div class="sell-form__photos-head">
+            <span>Фото товара <span class="sell-form__optional">— необязательно</span></span>
+            <span class="sell-form__photos-count" data-sell-photo-count>до <%= maxImages %> шт.</span>
+          </div>
+          <%# Плитки с «+» рисует public/js/sell-form.js. Если JS не сработал —
+              остаётся обычное поле выбора файлов ниже, форма всё равно работает. %>
+          <div class="photo-tiles" data-sell-tiles data-max="<%= maxImages %>" hidden></div>
+          <input type="file" name="images" accept="image/jpeg,image/png,image/webp" multiple data-sell-images class="sell-form__native-file">
+          <p class="sell-form__hint">JPG, PNG или WEBP, каждое до 5 МБ. Первое фото — обложка объявления, его видно в каталоге.</p>
+          <p class="sell-form__photo-error" data-sell-photo-error hidden></p>
+          <% if (error) { %><p class="sell-form__hint">Если вы добавляли фото — выберите их ещё раз: после ошибки браузер их не сохраняет.</p><% } %>
+        </div>
+
+        <button type="submit" class="btn btn--accent btn--block btn--lg">Опубликовать объявление</button>
+      </form>
+    </div>
+  </main>
+
+  <%- include('partials/footer') %>
+  <script src="/public/js/sell-form.js" defer></script>
+</body>
+</html>

@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <title>Страница не найдена — GearVault</title>
+  <%- include('partials/head') %>
+</head>
+<body>
+  <%- include('partials/header') %>
+  <main class="layout layout--single">
+    <div class="empty-state" style="margin-top:64px;">
+      <%- include('partials/art', { seed: '404', rarity: 'common', icon: '' }) %>
+      <h1 style="font-family:'Fraunces', serif; font-size:28px; margin-bottom:8px;">404</h1>
+      <p>Такой страницы или товара не существует — возможно, он уже продан.</p>
+      <a href="/" class="btn btn--accent" style="margin-top:16px; display:inline-block;">Вернуться в каталог</a>
+    </div>
+  </main>
+  <%- include('partials/footer') %>
+</body>
+</html>

@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <title>Регистрация — GearVault</title>
+  <%- include('partials/head') %>
+</head>
+<body>
+  <%- include('partials/header') %>
+
+  <main class="layout layout--single">
+    <div class="auth-card">
+      <h1 class="auth-card__title">Создать аккаунт</h1>
+
+      <% if (error) { %><div class="form-error"><%= error %></div><% } %>
+
+      <form method="post" action="/register" class="auth-form">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <label>Отображаемое имя
+          <input type="text" name="display_name" value="<%= formValues.display_name || '' %>" maxlength="40" required autofocus>
+        </label>
+        <label>Почта
+          <input type="email" name="email" value="<%= formValues.email || '' %>" autocomplete="email" inputmode="email" maxlength="254" required>
+          <span class="auth-form__hint">По ней вы будете входить на сайт</span>
+        </label>
+        <label>Пароль
+          <input type="password" name="password" minlength="6" autocomplete="new-password" required>
+        </label>
+        <label>Повторите пароль
+          <input type="password" name="password_confirm" minlength="6" autocomplete="new-password" required>
+        </label>
+        <label class="auth-form__checkbox">
+          <input type="checkbox" name="remember" checked>
+          Запомнить меня на этом устройстве
+        </label>
+        <button type="submit" class="btn btn--accent btn--block btn--lg">Зарегистрироваться</button>
+      </form>
+
+      <p class="auth-card__switch">Уже есть аккаунт? <a href="/login">Войти</a></p>
+    </div>
+  </main>
+
+  <%- include('partials/footer') %>
+</body>
+</html>

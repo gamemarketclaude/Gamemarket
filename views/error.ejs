@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <title>Ошибка сервера — GearVault</title>
+  <%- include('partials/head') %>
+</head>
+<body>
+  <%- include('partials/header') %>
+  <main class="layout layout--single">
+    <div class="empty-state" style="margin-top:64px;">
+      <%- include('partials/art', { seed: '500', rarity: 'common', icon: '' }) %>
+      <h1 style="font-family:'Fraunces', serif; font-size:28px; margin-bottom:8px;">Что-то пошло не так</h1>
+      <p>Произошла ошибка на сервере. Мы уже знаем о ней — попробуйте обновить страницу через минуту.</p>
+      <a href="/" class="btn btn--accent" style="margin-top:16px; display:inline-block;">Вернуться в каталог</a>
+    </div>
+  </main>
+  <%- include('partials/footer') %>
+</body>
+</html>

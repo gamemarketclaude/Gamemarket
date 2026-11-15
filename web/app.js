@@ -304,7 +304,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const c = CLIENTS[client];
     $('onboard-client').textContent = c.name;
     $('onboard-store').href = c.store;
-    $('onboard-store').textContent = ''Скачать ' + c.name;
+    $('onboard-store').textContent = 'Скачать ' + c.name;
     $('onboard-dlg').showModal();
   }
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {});

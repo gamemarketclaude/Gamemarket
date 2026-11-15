@@ -1,0 +1,56 @@
+<%- include('partials/head') %>
+<h1>Личный кабинет</h1>
+<section class="card sub">
+  <div class="sub-status">
+    <% if (sub.active) { %>
+      <span class="badge ok">Активна</span> до <b><%= new Date(sub.expires_at).toLocaleString('ru-RU', { timeZone: 'Europe/Moscow' }) %></b> (МСК)
+    <% } else { %>
+      <span class="badge off">Не активна</span> — оплатите тариф ниже
+    <% } %>
+  </div>
+
+  <label for="sub-url">Ваша ссылка подписки</label>
+  <div class="copy-row">
+    <input id="sub-url" type="text" readonly value="<%= subUrl %>">
+    <button class="btn" type="button" data-copy="sub-url">Копировать</button>
+  </div>
+  <p class="muted small">Никому не передавайте ссылку — по ней работает ваш VPN.</p>
+
+  <div class="sub-grid">
+    <div class="apps">
+      <a class="btn" href="<%= happLink %>">Добавить в Happ</a>
+      <a class="btn secondary" href="<%= v2raytunLink %>">Добавить в v2RayTun</a>
+      <ol class="muted small">
+        <li>Установите Happ или v2RayTun из App Store / Google Play.</li>
+        <li>Нажмите кнопку выше на этом устройстве <i>или</i> скопируйте ссылку → в приложении «+» → «Вставить из буфера».</li>
+        <li>На другом устройстве отсканируйте QR-код.</li>
+      </ol>
+    </div>
+    <img class="qr" src="<%= qr %>" alt="QR-код ссылки подписки" width="220" height="220">
+  </div>
+
+  <form method="post" action="/subscription/rotate" class="inline" data-confirm="Старая ссылка перестанет работать на всех устройствах. Продолжить?">
+    <input type="hidden" name="_csrf" value="<%= csrf %>">
+    <button class="link danger">Перевыпустить ссылку (если она утекла)</button>
+  </form>
+</section>
+
+<h2><%= sub.active ? 'Продлить' : 'Тарифы' %></h2>
+<% if (!paymentsEnabled) { %><p class="muted">Оплата временно недоступна.</p><% } %>
+<%- include('partials/plans') %>
+
+<% if (payments.length) { %>
+<h2>Платежи</h2>
+<table>
+  <tr><th>Дата</th><th>Тариф</th><th>Сумма</th><th>Статус</th></tr>
+  <% payments.forEach(function (p) { %>
+  <tr>
+    <td><%= new Date(p.created_at).toLocaleDateString('ru-RU') %></td>
+    <td><%= p.name %></td>
+    <td><%= (p.amount_kopecks / 100).toLocaleString('ru-RU') %> ₽</td>
+    <td><%= { pending: 'Ожидает', succeeded: 'Оплачен', canceled: 'Отменён' }[p.status] %></td>
+  </tr>
+  <% }) %>
+</table>
+<% } %>
+<%- include('partials/foot') %>

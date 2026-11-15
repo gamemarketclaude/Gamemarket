@@ -1,0 +1,17 @@
+<div class="plans">
+  <% plans.forEach(function (p) { %>
+    <div class="card plan">
+      <h3><%= p.name %></h3>
+      <div class="price"><%= (p.price_kopecks / 100).toLocaleString('ru-RU') %> ₽</div>
+      <div class="muted"><%= p.days %> дн. · <%= Math.round(p.price_kopecks / 100 / p.days * 30) %> ₽/мес</div>
+      <% if (user) { %>
+        <form method="post" action="/pay/<%= p.id %>">
+          <input type="hidden" name="_csrf" value="<%= csrf %>">
+          <button class="btn" <%= paymentsEnabled ? '' : 'disabled' %>>Оплатить</button>
+        </form>
+      <% } else { %>
+        <a class="btn" href="/register">Подключить</a>
+      <% } %>
+    </div>
+  <% }) %>
+</div>

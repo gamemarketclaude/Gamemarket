@@ -1,0 +1,7 @@
+[Unit]
+Description=VPN hub: sync Xray clients
+After=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/vpnhub-sync.sh

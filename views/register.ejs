@@ -1,0 +1,11 @@
+<%- include('partials/head') %>
+<form method="post" action="/register" class="card form">
+  <h1>Регистрация</h1>
+  <% if (error) { %><div class="flash err"><%= error %></div><% } %>
+  <input type="hidden" name="_csrf" value="<%= csrf %>">
+  <label>Email <input type="email" name="email" value="<%= email %>" required maxlength="254" autocomplete="email"></label>
+  <label>Пароль (от 10 символов) <input type="password" name="password" required minlength="10" maxlength="128" autocomplete="new-password"></label>
+  <button class="btn">Создать аккаунт</button>
+  <p class="muted small">Уже есть аккаунт? <a href="/login">Войти</a></p>
+</form>
+<%- include('partials/foot') %>

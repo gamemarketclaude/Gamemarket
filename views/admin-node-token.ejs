@@ -1,0 +1,12 @@
+<%- include('partials/head') %>
+<div class="card">
+  <h1>Сервер «<%= node.name %>» добавлен</h1>
+  <p><b>Токен показывается один раз.</b> Сохраните его на VPN-сервере в <code>/etc/vpnhub-agent.env</code>:</p>
+  <div class="copy-row">
+    <input id="node-token" type="text" readonly value="NODE_TOKEN=<%= token %>">
+    <button class="btn" type="button" data-copy="node-token">Копировать</button>
+  </div>
+  <p class="muted small">Дальше — по инструкции в README, раздел «Подключение VPN-сервера».</p>
+  <a href="/admin">← В админку</a>
+</div>
+<%- include('partials/foot') %>

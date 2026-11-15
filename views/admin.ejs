@@ -1,0 +1,75 @@
+<%- include('partials/head') %>
+<h1>Админка</h1>
+<div class="stats">
+  <div class="card"><div class="muted small">Пользователей</div><b><%= stats.users %></b></div>
+  <div class="card"><div class="muted small">Активных подписок</div><b><%= stats.active %></b></div>
+  <div class="card"><div class="muted small">Выручка за 30 дней</div><b><%= (Number(stats.revenue30) / 100).toLocaleString('ru-RU') %> ₽</b></div>
+</div>
+
+<h2>Серверы</h2>
+<table>
+  <tr><th>#</th><th>Название</th><th>Адрес</th><th>SNI</th><th>Синхр.</th><th></th></tr>
+  <% nodes.forEach(function (n) { %>
+  <tr class="<%= n.is_active ? '' : 'off' %>">
+    <td><%= n.id %></td><td><%= n.name %></td><td><%= n.host %>:<%= n.port %></td><td><%= n.sni %></td>
+    <td><%= n.last_sync_at ? new Date(n.last_sync_at).toLocaleString('ru-RU') : 'никогда' %></td>
+    <td><form method="post" action="/admin/nodes/<%= n.id %>/toggle"><input type="hidden" name="_csrf" value="<%= csrf %>"><button class="link"><%= n.is_active ? 'Выключить' : 'Включить' %></button></form></td>
+  </tr>
+  <% }) %>
+</table>
+<details class="card">
+  <summary>Добавить сервер</summary>
+  <form method="post" action="/admin/nodes" class="grid-form">
+    <input type="hidden" name="_csrf" value="<%= csrf %>">
+    <label>Название (видно в приложении) <input name="name" required maxlength="64" placeholder="🇳🇱 Нидерланды"></label>
+    <label>IP или домен <input name="host" required></label>
+    <label>Порт <input name="port" type="number" value="443" required></label>
+    <label>SNI (сайт для маскировки) <input name="sni" required placeholder="www.microsoft.com"></label>
+    <label>Public key (xray x25519) <input name="public_key" required></label>
+    <label>Short ID (hex) <input name="short_id" placeholder="a1b2c3d4"></label>
+    <button class="btn">Добавить и получить токен</button>
+  </form>
+</details>
+
+<h2>Тарифы</h2>
+<table>
+  <tr><th>Название</th><th>Дней</th><th>Цена</th><th></th></tr>
+  <% plans.forEach(function (p) { %>
+  <tr class="<%= p.is_active ? '' : 'off' %>">
+    <td><%= p.name %></td><td><%= p.days %></td><td><%= (p.price_kopecks / 100).toLocaleString('ru-RU') %> ₽</td>
+    <td><form method="post" action="/admin/plans/<%= p.id %>/toggle"><input type="hidden" name="_csrf" value="<%= csrf %>"><button class="link"><%= p.is_active ? 'Скрыть' : 'Показать' %></button></form></td>
+  </tr>
+  <% }) %>
+</table>
+<details class="card">
+  <summary>Добавить тариф</summary>
+  <form method="post" action="/admin/plans" class="grid-form">
+    <input type="hidden" name="_csrf" value="<%= csrf %>">
+    <label>Название <input name="name" required maxlength="64"></label>
+    <label>Дней <input name="days" type="number" min="1" max="3660" required></label>
+    <label>Цена, ₽ <input name="price_rub" type="number" min="1" step="0.01" required></label>
+    <button class="btn">Добавить</button>
+  </form>
+</details>
+
+<h2>Пользователи</h2>
+<form method="get" action="/admin" class="copy-row">
+  <input name="q" value="<%= q %>" placeholder="Поиск по email">
+  <button class="btn secondary">Найти</button>
+</form>
+<table>
+  <tr><th>#</th><th>Email</th><th>Подписка до</th><th>Продлить</th><th></th></tr>
+  <% users.forEach(function (u) { %>
+  <tr>
+    <td><%= u.id %></td><td><%= u.email %></td>
+    <td><span class="badge <%= u.active ? 'ok' : 'off' %>"><%= u.active ? new Date(u.expires_at).toLocaleDateString('ru-RU') : 'нет' %></span></td>
+    <td><form method="post" action="/admin/users/<%= u.id %>/extend" class="inline">
+      <input type="hidden" name="_csrf" value="<%= csrf %>">
+      <input name="days" type="number" min="1" max="3660" value="30" class="tiny">
+      <button class="link">+ дни</button>
+    </form></td>
+    <td><% if (u.active) { %><form method="post" action="/admin/users/<%= u.id %>/revoke" data-confirm="Отключить подписку?"><input type="hidden" name="_csrf" value="<%= csrf %>"><button class="link danger">Отключить</button></form><% } %></td>
+  </tr>
+  <% }) %>
+</table>
+<%- include('partials/foot') %>

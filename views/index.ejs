@@ -1,0 +1,13 @@
+<%- include('partials/head') %>
+<section class="hero">
+  <h1>Быстрый VPN в один клик</h1>
+  <p class="muted">Оплатите подписку, скопируйте ссылку и вставьте её в Happ или v2RayTun. Работает на iOS, Android, Windows и macOS.</p>
+</section>
+<section class="steps">
+  <div class="card"><b>1.</b> Зарегистрируйтесь и выберите тариф</div>
+  <div class="card"><b>2.</b> Установите Happ или v2RayTun</div>
+  <div class="card"><b>3.</b> Нажмите «Добавить в Happ» или вставьте ссылку из буфера</div>
+</section>
+<h2>Тарифы</h2>
+<%- include('partials/plans', { paymentsEnabled: false }) %>
+<%- include('partials/foot') %>

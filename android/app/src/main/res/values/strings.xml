@@ -1,0 +1,4 @@
+<resources>
+    <!-- Название приложения: поменяйте на своё -->
+    <string name="app_name">Мой VPN</string>
+</resources>

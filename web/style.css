@@ -1,0 +1,70 @@
+:root {
+  --bg: #0d1117; --panel: #161b22; --border: #2a313c; --text: #e6edf3; --muted: #8b949e;
+  --accent: #3b82f6; --ok: #22c55e; --danger: #ef4444;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+html, body { margin: 0; background: var(--bg); color: var(--text); }
+body { font: 16px/1.45 -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif; }
+main {
+  max-width: 560px; margin: 0 auto;
+  padding: calc(env(safe-area-inset-top) + 12px) 16px calc(env(safe-area-inset-bottom) + 24px);
+}
+header { display: flex; align-items: center; justify-content: space-between; }
+h1 { font-size: 26px; margin: 8px 0; } h2 { font-size: 17px; margin: 24px 0 8px; } h3 { margin: 0 0 12px; }
+.muted { color: var(--muted); } .small { font-size: 13px; }
+code { font-size: 13px; background: var(--bg); padding: 1px 4px; border-radius: 4px; }
+.card { background: var(--panel); border: 1px solid var(--border); border-radius: 14px; padding: 14px; margin: 12px 0; }
+.hint p { margin: 6px 0; }
+.kbd { background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 0 6px; white-space: nowrap; }
+.icon-btn { background: none; border: 0; color: var(--muted); font-size: 24px; padding: 8px; cursor: pointer; }
+.connect { display: flex; flex-direction: column; align-items: center; margin: 16px 0 8px; }
+.big-btn {
+  width: 190px; height: 190px; border-radius: 50%; border: 0; background: var(--accent); color: #fff;
+  font-family: inherit; font-size: 22px; font-weight: 700; line-height: 1.2; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
+  box-shadow: 0 10px 40px rgba(59,130,246,.35); cursor: pointer; transition: transform .1s;
+}
+.big-btn:active { transform: scale(.96); }
+.big-btn:disabled { background: #2a313c; box-shadow: none; color: var(--muted); }
+.big-btn .small { font-weight: 400; opacity: .85; }
+.selected { margin-top: 14px; font-size: 17px; text-align: center; word-break: break-word; }
+.row { display: flex; gap: 10px; margin: 12px 0; }
+.row > * { flex: 1; }
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; text-align: center; text-decoration: none;
+  background: var(--accent); color: #fff; border: 0; border-radius: 12px; padding: 13px 14px; font-family: inherit; font-size: 16px; font-weight: 600; cursor: pointer;
+}
+.btn.secondary { background: var(--panel); border: 1px solid var(--border); color: var(--text); }
+.link { background: none; border: 0; color: var(--accent); font: inherit; padding: 0; cursor: pointer; }
+.list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 8px; }
+.item {
+  display: flex; align-items: center; gap: 12px; background: var(--panel); border: 1px solid var(--border);
+  border-radius: 14px; padding: 12px; cursor: pointer;
+}
+.item.sel { border-color: var(--accent); background: rgba(59,130,246,.12); }
+.radio { width: 20px; height: 20px; border-radius: 50%; border: 2px solid var(--muted); flex: none; }
+.item.sel .radio { border: 6px solid var(--accent); }
+.item .body { flex: 1; min-width: 0; }
+.item .name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.item .meta { color: var(--muted); font-size: 13px; }
+.item .del { background: none; border: 0; color: var(--muted); font-size: 18px; padding: 6px; cursor: pointer; }
+dialog {
+  background: var(--panel); color: var(--text); border: 1px solid var(--border); border-radius: 16px;
+  width: min(92vw, 480px); padding: 18px;
+}
+dialog::backdrop { background: rgba(0,0,0,.6); }
+textarea {
+  width: 100%; background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 10px;
+  padding: 10px; font: 14px ui-monospace, Menlo, monospace; resize: vertical;
+}
+.client { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--border); }
+.client:last-child { border-bottom: 0; }
+.client label { flex: 1; display: flex; align-items: center; gap: 10px; }
+.client input { width: 20px; height: 20px; accent-color: var(--accent); }
+.client a { color: var(--accent); font-size: 14px; text-decoration: none; }
+.toast {
+  position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(env(safe-area-inset-bottom) + 20px);
+  background: #fff; color: #000; padding: 10px 16px; border-radius: 12px; max-width: 90vw; font-size: 15px;
+  box-shadow: 0 6px 24px rgba(0,0,0,.4); z-index: 10;
+}
+.foot { text-align: center; margin-top: 28px; }

@@ -33,9 +33,11 @@ func ParseKeys(text string) (string, error) {
 	return string(b), err
 }
 
-// FetchSubscription скачивает подписку по https-ссылке. Возвращает JSON Subscription.
-func FetchSubscription(url, userAgent string) (string, error) {
-	sub, err := fetchSubscription(url, userAgent)
+// FetchSubscription скачивает подписку. hwid и данные устройства отправляются в
+// стандартных заголовках x-hwid / x-device-os / x-ver-os / x-device-model.
+// Возвращает JSON Subscription.
+func FetchSubscription(url, userAgent, hwid, deviceOS, osVersion, model string) (string, error) {
+	sub, err := fetchSubscription(url, userAgent, Device{hwid, deviceOS, osVersion, model})
 	if err != nil {
 		return "", err
 	}

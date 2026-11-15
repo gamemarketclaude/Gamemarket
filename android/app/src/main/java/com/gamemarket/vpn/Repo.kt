@@ -1,6 +1,10 @@
 package com.gamemarket.vpn
 
+import android.annotation.SuppressLint
 import android.content.Context
+import android.os.Build
+import android.provider.Settings
+import java.security.MessageDigest
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import libcore.Libcore
@@ -10,6 +14,17 @@ import org.json.JSONObject
 /** Добавление ключей и подписок. Разбор делает Go-ядро (Libcore). */
 class Repo(context: Context) {
     val storage = Storage(context)
+
+    /**
+     * Идентификатор устройства для провайдеров с лимитом устройств.
+     * Хеш от ANDROID_ID (он уникален для пары «приложение + устройство»), сам ANDROID_ID не передаётся.
+     */
+    @SuppressLint("HardwareIds")
+    private val hwid: String = run {
+        val raw = Settings.Secure.getString(context.contentResolver, Settings.Secure.ANDROID_ID) ?: "unknown"
+        MessageDigest.getInstance("SHA-256").digest(("myvpn:" + raw).toByteArray())
+            .joinToString("") { "%02x".format(it) }.take(16)
+    }
 
     private fun profilesFrom(arr: JSONArray, subId: String?): List<Server> =
         (0 until arr.length()).map { i ->
@@ -52,7 +67,11 @@ class Repo(context: Context) {
     }
 
     private fun addOrUpdateSub(url: String): String {
-        val js = JSONObject(Libcore.fetchSubscription(url, USER_AGENT))
+        val js = JSONObject(
+            Libcore.fetchSubscription(
+                url, USER_AGENT, hwid, "Android", Build.VERSION.RELEASE, "${Build.MANUFACTURER} ${Build.MODEL}"
+            )
+        )
         val subs = storage.subs()
         val old = subs.find { it.url == url }
         val subId = old?.id ?: Storage.newId()
@@ -62,6 +81,8 @@ class Repo(context: Context) {
             expire = js.optLong("expire"), upload = js.optLong("upload"),
             download = js.optLong("download"), total = js.optLong("total"),
             updatedAt = System.currentTimeMillis(),
+            announce = js.optString("announce"),
+            supportUrl = js.optString("supportUrl"),
         )
         storage.saveSubs(subs.filter { it.id != subId } + sub)
         val oldServers = storage.servers()

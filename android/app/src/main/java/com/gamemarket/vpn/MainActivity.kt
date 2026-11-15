@@ -251,6 +251,18 @@ private fun SubCard(s: Sub, onDelete: () -> Unit) {
                 }
                 if (s.total > 0) parts += "трафик ${gb(s.upload + s.download)} из ${gb(s.total)}"
                 if (parts.isNotEmpty()) Text(parts.joinToString(" · "), color = Muted, fontSize = 13.sp)
+                if (s.announce.isNotBlank()) Text(s.announce, color = Color.White, fontSize = 13.sp)
+                if (s.supportUrl.isNotBlank()) {
+                    val ctx = androidx.compose.ui.platform.LocalContext.current
+                    Text(
+                        "Поддержка провайдера", color = Accent, fontSize = 13.sp,
+                        modifier = Modifier.clickable {
+                            try {
+                                ctx.startActivity(Intent(Intent.ACTION_VIEW, android.net.Uri.parse(s.supportUrl)))
+                            } catch (_: Exception) {}
+                        }
+                    )
+                }
             }
             TextButton(onClick = onDelete) { Text("Удалить", color = Danger) }
         }

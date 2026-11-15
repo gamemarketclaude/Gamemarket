@@ -21,7 +21,11 @@ const realityKey = "vless://3cc4934a-c2a4-4b4d-bf1d-4378d880ce54@1.2.3.4:443?enc
 
 func TestParseVariants(t *testing.T) {
 	vmessJSON := `{"v":"2","ps":"VM","add":"ex.com","port":"443","id":"3cc4934a-c2a4-4b4d-bf1d-4378d880ce54","net":"ws","path":"/ws","host":"ex.com","tls":"tls","sni":"ex.com"}`
-	cases := []struct{ link, proto, addr string; port int; name string }{
+	cases := []struct {
+		link, proto, addr string
+		port              int
+		name              string
+	}{
 		{realityKey, "vless", "1.2.3.4", 443, "🇳🇱 NL"},
 		{"vless://3cc4934a-c2a4-4b4d-bf1d-4378d880ce54@[2001:db8::1]:8443?type=grpc&serviceName=gs&security=tls&sni=a.com#v6", "vless", "2001:db8::1", 8443, "v6"},
 		{"trojan://pass%40word@tr.example.com:443?type=ws&path=%2Fp#TR", "trojan", "tr.example.com", 443, "TR"},
@@ -74,24 +78,42 @@ func TestParseTextAndSubscription(t *testing.T) {
 		t.Fatalf("base64 list: %d", n)
 	}
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("x-hwid") == "" { // как панели с лимитом устройств
+			io.WriteString(w, base64.StdEncoding.EncodeToString([]byte(
+				"vless://00000000-0000-0000-0000-000000000000@0.0.0.0:1?type=tcp#%E2%9D%8C%20%D0%9F%D1%80%D0%B8%D0%BB%D0%BE%D0%B6%D0%B5%D0%BD%D0%B8%D0%B5%20%D0%BD%D0%B5%20%D0%BF%D0%BE%D0%B4%D0%B4%D0%B5%D1%80%D0%B6%D0%B8%D0%B2%D0%B0%D0%B5%D1%82%D1%81%D1%8F")))
+			return
+		}
+		if r.Header.Get("x-device-os") != "Android" || r.Header.Get("User-Agent") != "test" {
+			w.WriteHeader(400)
+			return
+		}
+		w.Header().Set("announce", "base64:"+base64.StdEncoding.EncodeToString([]byte("Выберите сервер")))
+		w.Header().Set("support-url", "https://t.me/support")
 		w.Header().Set("profile-title", "base64:"+base64.StdEncoding.EncodeToString([]byte("Мой VPN")))
 		w.Header().Set("subscription-userinfo", "upload=1; download=2; total=3; expire=1797362923")
 		io.WriteString(w, base64.StdEncoding.EncodeToString([]byte(list)))
 	}))
 	defer srv.Close()
-	js, err := FetchSubscription(srv.URL, "test")
+	_, err := FetchSubscription(srv.URL, "test", "", "", "", "")
+	if err == nil || !strings.Contains(err.Error(), "Приложение не поддерживается") {
+		t.Fatalf("placeholder must become readable error, got %v", err)
+	}
+	js, err := FetchSubscription(srv.URL, "test", "abc123", "Android", "14", "Pixel")
 	if err != nil {
 		t.Fatal(err)
 	}
 	var s Subscription
 	json.Unmarshal([]byte(js), &s)
+	if s.Announce != "Выберите сервер" || s.Support != "https://t.me/support" {
+		t.Fatalf("announce/support: %+v", s)
+	}
 	if s.Title != "Мой VPN" || s.Expire != 1797362923 || s.Total != 3 || len(s.Profiles) != 2 {
 		t.Fatalf("sub: %+v", s)
 	}
 	if strings.Contains(js, "3cc4934a") == false || strings.Contains(js, `"ID"`) {
 		t.Fatalf("json must contain link but not internal fields: %s", js)
 	}
-	if _, err := FetchSubscription("ftp://x", "t"); err == nil {
+	if _, err := FetchSubscription("ftp://x", "t", "", "", "", ""); err == nil {
 		t.Fatal("ftp must fail")
 	}
 }

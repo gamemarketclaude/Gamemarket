@@ -24,6 +24,8 @@ data class Sub(
     val download: Long,
     val total: Long,
     val updatedAt: Long,
+    val announce: String = "",
+    val supportUrl: String = "",
 )
 
 /** Ключи хранятся в приватном хранилище приложения (недоступно другим приложениям, бэкап выключен). */
@@ -66,6 +68,7 @@ class Storage(context: Context) {
                 o.getString("id"), o.getString("url"), o.optString("title"),
                 o.optLong("expire"), o.optLong("upload"), o.optLong("download"),
                 o.optLong("total"), o.optLong("updatedAt"),
+                o.optString("announce"), o.optString("supportUrl"),
             )
         }
     }
@@ -77,6 +80,7 @@ class Storage(context: Context) {
                 put("id", s.id); put("url", s.url); put("title", s.title)
                 put("expire", s.expire); put("upload", s.upload); put("download", s.download)
                 put("total", s.total); put("updatedAt", s.updatedAt)
+                put("announce", s.announce); put("supportUrl", s.supportUrl)
             })
         }
         prefs.edit().putString("subs", arr.toString()).apply()

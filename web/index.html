@@ -4,8 +4,8 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Мой VPN</title>
-  <meta name="description" content="Ваши VPN-ключи в одном месте: подключение в одно касание">
-  <meta name="theme-color" content="#0d1117">
+  <meta name="description" content="Ваши VPN-локации в одном месте: подключение в одно касание">
+  <meta name="theme-color" content="#05060f">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -16,70 +16,117 @@
   <script src="/app.js" defer></script>
 </head>
 <body>
+  <div class="aurora" aria-hidden="true"><i></i><i></i><i></i></div>
+
   <main>
-    <header>
-      <h1>Мой VPN</h1>
-      <button id="settings-btn" class="icon-btn" aria-label="Настройки">⚙︎</button>
+    <header class="top">
+      <div class="brand">
+        <span class="mark" aria-hidden="true">
+          <svg viewBox="0 0 24 24"><path d="M12 2.5 20 5.6v6.1c0 4.9-3.4 8.6-8 9.8-4.6-1.2-8-4.9-8-9.8V5.6z"/></svg>
+        </span>
+        <span class="wordmark">Мой VPN</span>
+      </div>
+      <button id="settings-btn" class="icon-btn" aria-label="Настройки">
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.2"/><path d="M19.4 13.5a7.7 7.7 0 0 0 0-3l2-1.6-2-3.4-2.4.9a7.6 7.6 0 0 0-2.6-1.5L14 2.4h-4l-.4 2.5A7.6 7.6 0 0 0 7 6.4l-2.4-.9-2 3.4 2 1.6a7.7 7.7 0 0 0 0 3l-2 1.6 2 3.4 2.4-.9a7.6 7.6 0 0 0 2.6 1.5l.4 2.5h4l.4-2.5a7.6 7.6 0 0 0 2.6-1.5l2.4.9 2-3.4z"/></svg>
+      </button>
     </header>
 
-    <section id="install-hint" class="card hint" hidden>
-      <b>Добавьте на экран «Домой»</b>
-      <p>Нажмите <span class="kbd">Поделиться</span> внизу Safari → <span class="kbd">На экран «Домой»</span>. Приложение появится рядом с остальными.</p>
-      <button class="link" data-close="install-hint">Понятно</button>
-    </section>
-
-    <section class="connect">
-      <button id="connect" class="big-btn" disabled>
-        <span class="small" id="connect-sub">нет ключей</span>
-        <span id="connect-label">Подключить</span>
+    <section class="hero">
+      <button id="connect" class="orb" disabled>
+        <span class="orb-ring" aria-hidden="true"></span>
+        <span class="orb-core">
+          <svg class="power" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v8"/><path d="M6.3 6.8a8 8 0 1 0 11.4 0"/></svg>
+          <span id="connect-label" class="orb-label">Подключить</span>
+          <span id="connect-sub" class="orb-sub">добавьте ключ</span>
+        </span>
       </button>
-      <div id="selected-name" class="selected"></div>
-      <div id="client-line" class="muted small"></div>
+
+      <button id="current" class="current" hidden>
+        <span id="current-flag" class="flag"></span>
+        <span class="current-text">
+          <span class="current-caption">Локация</span>
+          <span id="current-name" class="current-name"></span>
+        </span>
+        <span id="current-proto" class="chip"></span>
+      </button>
     </section>
 
-    <section class="row">
-      <button id="paste" class="btn">Вставить ключ</button>
-      <button id="manual" class="btn secondary">Ввести</button>
+    <section id="empty" class="glass empty">
+      <h2>Начнём</h2>
+      <ol class="steps">
+        <li><span class="num">1</span><span>Скопируйте купленный ключ или ссылку подписки</span></li>
+        <li><span class="num">2</span><span>Нажмите «Добавить ключ» внизу</span></li>
+        <li><span class="num">3</span><span>Выберите локацию и нажмите большую кнопку</span></li>
+      </ol>
     </section>
 
-    <section id="empty" class="card muted">
-      Скопируйте купленный ключ (<code>vless://</code>, <code>vmess://</code>, <code>trojan://</code>, <code>ss://</code>)
-      или ссылку подписки и нажмите «Вставить ключ». Потом — большую кнопку.
+    <section id="locations-wrap" hidden>
+      <div class="section-head">
+        <h2>Локации</h2>
+        <span id="count" class="muted"></span>
+      </div>
+      <ul id="list" class="locations"></ul>
     </section>
 
-    <h2 id="list-title" hidden>Ваши ключи</h2>
-    <ul id="list" class="list"></ul>
-
-    <p class="muted small foot">Ключи хранятся только на этом устройстве и никуда не отправляются.</p>
+    <p class="footnote">Ключи хранятся только на этом устройстве</p>
   </main>
 
-  <dialog id="manual-dlg">
+  <nav class="dock">
+    <button id="paste" class="btn primary">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+      Добавить ключ
+    </button>
+    <button id="manual" class="btn ghost" aria-label="Ввести вручную">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16z"/></svg>
+    </button>
+  </nav>
+
+  <dialog id="manual-dlg" class="sheet">
     <form method="dialog">
+      <div class="grabber"></div>
       <h3>Ключ или ссылка подписки</h3>
-      <textarea id="manual-text" rows="5" placeholder="vless://… или https://…" autocapitalize="off" autocorrect="off" spellcheck="false"></textarea>
-      <div class="row">
-        <button value="cancel" class="btn secondary">Отмена</button>
-        <button value="ok" class="btn" id="manual-ok">Добавить</button>
+      <textarea id="manual-text" rows="5" placeholder="vless://…  или  https://…" autocapitalize="off" autocorrect="off" spellcheck="false"></textarea>
+      <div class="sheet-actions">
+        <button value="cancel" class="btn ghost">Отмена</button>
+        <button value="ok" class="btn primary" id="manual-ok">Добавить</button>
       </div>
     </form>
   </dialog>
 
-  <dialog id="settings-dlg">
+  <dialog id="settings-dlg" class="sheet">
     <form method="dialog">
-      <h3>Приложение для подключения</h3>
-      <p class="muted small">iPhone разрешает включать VPN только приложениям из App Store. Выберите, какое из бесплатных приложений откроется по кнопке «Подключить». Его нужно установить один раз.</p>
-      <div id="clients"></div>
-      <div class="row"><button value="ok" class="btn">Готово</button></div>
+      <div class="grabber"></div>
+      <h3>Приложение для VPN</h3>
+      <p class="muted">На iPhone VPN включают только приложения из App Store. Мы передаём выбранную локацию в одно из них — установите его один раз, это бесплатно.</p>
+      <div id="clients" class="clients"></div>
+      <div class="sheet-actions"><button value="ok" class="btn primary">Готово</button></div>
     </form>
   </dialog>
 
-  <dialog id="need-app-dlg">
+  <dialog id="onboard-dlg" class="sheet">
     <form method="dialog">
+      <div class="grabber"></div>
+      <h3>Добро пожаловать</h3>
+      <ol class="steps">
+        <li><span class="num">1</span><span>Добавьте эту страницу на экран «Домой»: <b>Поделиться</b> → <b>На экран «Домой»</b></span></li>
+        <li><span class="num">2</span><span>Установите бесплатное приложение <b id="onboard-client">Happ</b> — через него iPhone включает VPN</span></li>
+        <li><span class="num">3</span><span>Добавьте ключ, выберите локацию — и подключайтесь</span></li>
+      </ol>
+      <div class="sheet-actions">
+        <button value="cancel" class="btn ghost">Позже</button>
+        <a id="onboard-store" class="btn primary" href="#" target="_blank" rel="noopener">Скачать Happ</a>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="need-app-dlg" class="sheet">
+    <form method="dialog">
+      <div class="grabber"></div>
       <h3>Не открылось?</h3>
-      <p>Скорее всего, <b id="need-app-name"></b> ещё не установлено. Установите его из App Store (бесплатно) и нажмите «Подключить» ещё раз.</p>
-      <div class="row">
-        <button value="cancel" class="btn secondary">Закрыть</button>
-        <a id="need-app-link" class="btn" href="#" target="_blank" rel="noopener">Открыть App Store</a>
+      <p>Похоже, <b id="need-app-name"></b> ещё не установлено. Установите его из App Store — это бесплатно — и нажмите кнопку ещё раз.</p>
+      <div class="sheet-actions">
+        <button value="cancel" class="btn ghost">Закрыть</button>
+        <a id="need-app-link" class="btn primary" href="#" target="_blank" rel="noopener">Открыть App Store</a>
       </div>
     </form>
   </dialog>

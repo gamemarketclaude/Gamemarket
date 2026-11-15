@@ -1,5 +1,5 @@
 // Офлайн-кэш оболочки приложения. Ключи сюда не попадают — они в localStorage.
-const CACHE = 'myvpn-v1';
+const CACHE = 'myvpn-v2';
 const ASSETS = ['/', '/index.html', '/style.css', '/app.js', '/manifest.webmanifest',
   '/icons/apple-touch-icon.png', '/icons/icon-192.png', '/icons/icon-512.png'];
 

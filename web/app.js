@@ -24,7 +24,7 @@ const CLIENTS = {
   },
 };
 
-const LS = { items: 'myvpn.items', sel: 'myvpn.sel', client: 'myvpn.client', hint: 'myvpn.hintClosed' };
+const LS = { items: 'myvpn.items', sel: 'myvpn.sel', client: 'myvpn.client', onboarded: 'myvpn.onboarded' };
 
 function load(key, def) {
   try { const v = localStorage.getItem(key); return v === null ? def : JSON.parse(v); } catch { return def; }
@@ -134,16 +134,56 @@ function addFromText(text) {
 
 /* ---------- интерфейс ---------- */
 
+const SVG_NS = 'http://www.w3.org/2000/svg';
+function icon(paths) {
+  const svg = document.createElementNS(SVG_NS, 'svg');
+  svg.setAttribute('viewBox', '0 0 24 24');
+  svg.setAttribute('aria-hidden', 'true');
+  for (const d of paths) {
+    const p = document.createElementNS(SVG_NS, 'path');
+    p.setAttribute('d', d);
+    svg.append(p);
+  }
+  return svg;
+}
+const GLOBE = ['M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18z', 'M3 12h18', 'M12 3c2.5 2.6 3.8 5.6 3.8 9s-1.3 6.4-3.8 9c-2.5-2.6-3.8-5.6-3.8-9S9.5 5.6 12 3z'];
+const LAYERS = ['M12 3 3 8l9 5 9-5z', 'M3 13l9 5 9-5'];
+const CHECK = ['M5 12.5l4.5 4.5L19 7.5'];
+const TRASH = ['M5 7h14', 'M10 7V5h4v2', 'M7 7l1 12h8l1-12'];
+
+/** Флаг страны из начала названия («🇳🇱 Нидерланды») — если есть. */
+function splitFlag(name) {
+  const m = /^((?:\uD83C[\uDDE6-\uDDFF]){2})\s*/.exec(name || '');
+  return m ? { flag: m[1], text: name.slice(m[0].length) || name } : { flag: '', text: name || '' };
+}
+
+function fillFlag(el, it) {
+  el.replaceChildren();
+  const { flag } = splitFlag(it.name);
+  if (flag) el.textContent = flag;
+  else el.append(icon(it.kind === 'sub' ? LAYERS : GLOBE));
+}
+
+function protoLabel(it) { return it.kind === 'sub' ? 'Подписка' : (PROTO_NAMES[it.proto] || it.proto); }
+
 let toastTimer;
 function toast(msg) {
   const t = $('toast');
   t.textContent = msg;
   t.hidden = false;
+  t.style.animation = 'none'; void t.offsetWidth; t.style.animation = '';
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => { t.hidden = true; }, 3200);
+  toastTimer = setTimeout(() => { t.hidden = true; }, 3000);
 }
 
 function selected() { return items.find((x) => x.id === selId) || items[0] || null; }
+
+function pluralLoc(n) {
+  const m10 = n % 10, m100 = n % 100;
+  if (m10 === 1 && m100 !== 11) return n + ' локация';
+  if (m10 >= 2 && m10 <= 4 && (m100 < 12 || m100 > 14)) return n + ' локации';
+  return n + ' локаций';
+}
 
 function render() {
   const sel = selected();
@@ -151,34 +191,43 @@ function render() {
   const c = CLIENTS[client];
 
   $('connect').disabled = !sel;
-  $('connect-sub').textContent = sel ? 'откроется в ' + c.name : 'нет ключей';
-  $('selected-name').textContent = sel ? sel.name : '';
-  $('client-line').textContent = sel ? 'Приложение: ' + c.name + ' · сменить в ⚙︎' : '';
+  $('connect-sub').textContent = sel ? 'через ' + c.name : 'добавьте ключ';
+  $('current').hidden = !sel;
+  if (sel) {
+    fillFlag($('current-flag'), sel);
+    $('current-name').textContent = splitFlag(sel.name).text;
+    $('current-proto').textContent = protoLabel(sel);
+  }
   $('empty').hidden = items.length > 0;
-  $('list-title').hidden = items.length === 0;
+  $('locations-wrap').hidden = items.length === 0;
+  $('count').textContent = pluralLoc(items.length);
 
   const list = $('list');
   list.replaceChildren();
   for (const it of items) {
     const li = document.createElement('li');
-    li.className = 'item' + (sel && it.id === sel.id ? ' sel' : '');
-    const radio = document.createElement('span'); radio.className = 'radio';
+    li.className = 'loc' + (sel && it.id === sel.id ? ' sel' : '');
+    li.tabIndex = 0;
+    const flag = document.createElement('span'); flag.className = 'flag'; fillFlag(flag, it);
     const body = document.createElement('div'); body.className = 'body';
-    const name = document.createElement('div'); name.className = 'name'; name.textContent = it.name;
+    const name = document.createElement('div'); name.className = 'name'; name.textContent = splitFlag(it.name).text;
     const meta = document.createElement('div'); meta.className = 'meta';
-    meta.textContent = it.kind === 'sub' ? 'Подписка · серверы выберете в ' + c.name : (PROTO_NAMES[it.proto] || it.proto);
+    meta.textContent = it.kind === 'sub' ? 'Подписка · серверы внутри ' + c.name : protoLabel(it);
     body.append(name, meta);
+    const check = document.createElement('span'); check.className = 'check'; check.append(icon(CHECK));
     const del = document.createElement('button');
-    del.className = 'del'; del.textContent = '✕'; del.setAttribute('aria-label', 'Удалить');
+    del.className = 'del'; del.setAttribute('aria-label', 'Удалить'); del.append(icon(TRASH));
     del.addEventListener('click', (e) => {
       e.stopPropagation();
-      if (!confirm('Удалить «' + it.name + '»?')) return;
+      if (!confirm('Удалить «' + splitFlag(it.name).text + '»?')) return;
       items = items.filter((x) => x.id !== it.id);
       if (selId === it.id) selId = items[0] ? items[0].id : null;
       save(LS.items, items); save(LS.sel, selId); render();
     });
-    li.append(radio, body, del);
-    li.addEventListener('click', () => { selId = it.id; save(LS.sel, selId); render(); });
+    const choose = () => { selId = it.id; save(LS.sel, selId); render(); };
+    li.addEventListener('click', choose);
+    li.addEventListener('keydown', (e) => { if (e.key === 'Enter') choose(); });
+    li.append(flag, body, check, del);
     list.append(li);
   }
 }
@@ -195,7 +244,7 @@ function renderClients() {
     const span = document.createElement('span'); span.textContent = c.name;
     label.append(input, span);
     const a = document.createElement('a');
-    a.href = c.store; a.target = '_blank'; a.rel = 'noopener'; a.textContent = 'Установить';
+    a.href = c.store; a.target = '_blank'; a.rel = 'noopener'; a.textContent = 'App Store';
     row.append(label, a);
     box.append(row);
   }
@@ -225,7 +274,6 @@ async function pasteFromClipboard() {
   try {
     addFromText(await navigator.clipboard.readText());
   } catch {
-    toast('Нет доступа к буферу — вставьте вручную');
     openManual();
   }
 }
@@ -233,26 +281,31 @@ async function pasteFromClipboard() {
 function openManual() {
   $('manual-text').value = '';
   $('manual-dlg').showModal();
-  setTimeout(() => $('manual-text').focus(), 50);
+  setTimeout(() => $('manual-text').focus(), 60);
 }
 
 function isIOS() { return /iPhone|iPad|iPod/.test(navigator.userAgent); }
-function isStandalone() { return window.navigator.standalone === true || matchMedia('(display-mode: standalone)').matches; }
 
 document.addEventListener('DOMContentLoaded', () => {
   $('connect').addEventListener('click', connect);
+  $('current').addEventListener('click', () => $('locations-wrap').scrollIntoView({ behavior: 'smooth' }));
   $('paste').addEventListener('click', pasteFromClipboard);
   $('manual').addEventListener('click', openManual);
   $('manual-dlg').addEventListener('close', () => {
     if ($('manual-dlg').returnValue === 'ok') addFromText($('manual-text').value);
   });
   $('settings-btn').addEventListener('click', () => { renderClients(); $('settings-dlg').showModal(); });
-  document.querySelectorAll('[data-close]').forEach((b) =>
-    b.addEventListener('click', () => {
-      $(b.dataset.close).hidden = true;
-      save(LS.hint, true);
-    }));
-  if (isIOS() && !isStandalone() && !load(LS.hint, false)) $('install-hint').hidden = false;
+  // Закрытие листов тапом по затемнению
+  document.querySelectorAll('dialog.sheet').forEach((d) =>
+    d.addEventListener('click', (e) => { if (e.target === d) d.close('cancel'); }));
   render();
+  if (isIOS() && !load(LS.onboarded, false)) {
+    save(LS.onboarded, true);
+    const c = CLIENTS[client];
+    $('onboard-client').textContent = c.name;
+    $('onboard-store').href = c.store;
+    $('onboard-store').textContent = ''Скачать ' + c.name;
+    $('onboard-dlg').showModal();
+  }
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {});
 });

@@ -7,6 +7,11 @@ on:
       - ".github/workflows/android.yml"
     tags: ["v*"]
   workflow_dispatch:
+    inputs:
+      release:
+        description: "Опубликовать релиз с этой версией (например v0.1.0). Пусто — только сборка."
+        required: false
+        default: ""
 
 permissions:
   contents: write # нужно только для публикации релиза по тегу
@@ -65,7 +70,7 @@ jobs:
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
           VERSION_CODE: ${{ github.run_number }}
-          VERSION_NAME: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || format('0.1.{0}', github.run_number) }}
+          VERSION_NAME: ${{ inputs.release != '' && inputs.release || (startsWith(github.ref, 'refs/tags/v') && github.ref_name || format('0.1.{0}', github.run_number)) }}
         run: gradle --no-daemon assembleRelease
 
       - name: Переименование APK
@@ -82,8 +87,21 @@ jobs:
           name: apk
           path: dist/*.apk
 
-      - name: Релиз (только для тегов v*)
-        if: startsWith(github.ref, 'refs/tags/v')
+      - name: Проверка номера версии
+        if: inputs.release != ''
+        env:
+          REL: ${{ inputs.release }}
+        run: |
+          [[ "$REL" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "Версия должна быть вида v1.2.3"; exit 1; }
+
+      - name: Релиз (по тегу v* или по кнопке с указанной версией)
+        if: startsWith(github.ref, 'refs/tags/v') || inputs.release != ''
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ inputs.release != '' && inputs.release || github.ref_name }}
+          target_commitish: ${{ github.sha }}
+          name: ${{ inputs.release != '' && inputs.release || github.ref_name }}
+          body: |
+            Android-приложение «Мой VPN».
+            Какой файл скачать: myvpn-universal.apk — подходит для любого телефона.
           files: dist/*.apk

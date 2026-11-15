@@ -77,7 +77,7 @@ func TestParseTextAndSubscription(t *testing.T) {
 	if n := len(ParseText(base64.StdEncoding.EncodeToString([]byte(list)))); n != 2 {
 		t.Fatalf("base64 list: %d", n)
 	}
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Header.Get("x-hwid") == "" { // как панели с лимитом устройств
 			io.WriteString(w, base64.StdEncoding.EncodeToString([]byte(
 				"vless://00000000-0000-0000-0000-000000000000@0.0.0.0:1?type=tcp#%E2%9D%8C%20%D0%9F%D1%80%D0%B8%D0%BB%D0%BE%D0%B6%D0%B5%D0%BD%D0%B8%D0%B5%20%D0%BD%D0%B5%20%D0%BF%D0%BE%D0%B4%D0%B4%D0%B5%D1%80%D0%B6%D0%B8%D0%B2%D0%B0%D0%B5%D1%82%D1%81%D1%8F")))
@@ -94,6 +94,8 @@ func TestParseTextAndSubscription(t *testing.T) {
 		io.WriteString(w, base64.StdEncoding.EncodeToString([]byte(list)))
 	}))
 	defer srv.Close()
+	subTransport = srv.Client().Transport
+	defer func() { subTransport = nil }()
 	_, err := FetchSubscription(srv.URL, "test", "", "", "", "")
 	if err == nil || !strings.Contains(err.Error(), "Приложение не поддерживается") {
 		t.Fatalf("placeholder must become readable error, got %v", err)
@@ -112,6 +114,9 @@ func TestParseTextAndSubscription(t *testing.T) {
 	}
 	if strings.Contains(js, "3cc4934a") == false || strings.Contains(js, `"ID"`) {
 		t.Fatalf("json must contain link but not internal fields: %s", js)
+	}
+	if _, err := FetchSubscription("http://example.com/sub", "t", "", "", "", ""); err == nil || !strings.Contains(err.Error(), "https") {
+		t.Fatalf("http must be refused, got %v", err)
 	}
 	if _, err := FetchSubscription("ftp://x", "t", "", "", "", ""); err == nil {
 		t.Fatal("ftp must fail")

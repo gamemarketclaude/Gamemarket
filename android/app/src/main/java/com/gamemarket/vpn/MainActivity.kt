@@ -97,9 +97,22 @@ fun MainScreen(incoming: MutableStateFlow<String?>) {
         }
     }
 
+    // Ключ из внешней ссылки или «Поделиться» добавляем только после подтверждения:
+    // иначе любая веб-страница могла бы незаметно подсунуть свой сервер.
     val incomingText by incoming.collectAsStateWithLifecycle()
-    LaunchedEffect(incomingText) {
-        incomingText?.let { doImport(it); incoming.value = null }
+    incomingText?.let { pending ->
+        val preview = pending.trim().let { if (it.length > 80) it.take(80) + "…" else it }
+        AlertDialog(
+            onDismissRequest = { incoming.value = null },
+            title = { Text("Добавить ключ из ссылки?") },
+            text = {
+                Text("Добавляйте, только если получили ключ от своего VPN-провайдера.\n\n$preview")
+            },
+            confirmButton = {
+                TextButton(onClick = { incoming.value = null; doImport(pending) }) { Text("Добавить") }
+            },
+            dismissButton = { TextButton(onClick = { incoming.value = null }) { Text("Отмена") } },
+        )
     }
 
     val notifPerm = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {}

@@ -7,7 +7,7 @@
 const dns = require('dns').promises;
 const net = require('net');
 
-const MAX_BODY = 2 * 1024 * 1024;
+const MAX_BODY = 512 * 1024;
 const PASS_HEADERS = ['profile-title', 'subscription-userinfo', 'announce', 'support-url', 'profile-update-interval'];
 
 // Простой лимит запросов на инстанс (best effort: у serverless несколько инстансов).
@@ -31,6 +31,14 @@ function isPrivateIp(ip) {
   const v = ip.toLowerCase();
   if (v.startsWith('::ffff:')) return isPrivateIp(v.slice(7));
   return v === '::' || v === '::1' || v.startsWith('fc') || v.startsWith('fd') || v.startsWith('fe80') || v.startsWith('ff');
+}
+
+const KEY_RE = /^(vless|vmess|trojan|ss|hysteria2|hy2|tuic):\/\//im;
+function looksLikeSubscription(text) {
+  const t = text.trim();
+  if (KEY_RE.test(t)) return true;
+  if (!/^[A-Za-z0-9+/=_\-\s]+$/.test(t)) return false;
+  try { return KEY_RE.test(Buffer.from(t.replace(/\s+/g, ''), 'base64').toString('utf8')); } catch { return false; }
 }
 
 async function readLimited(resp) {
@@ -97,6 +105,9 @@ module.exports = async function handler(req, res) {
     if (resp.status >= 300 && resp.status < 400) return res.status(502).json({ error: 'Провайдер перенаправил запрос — такие ссылки не поддерживаются' });
     if (!resp.ok) return res.status(502).json({ error: 'Провайдер ответил ошибкой ' + resp.status });
     const text = await readLimited(resp);
+    // Отдаём только содержимое, похожее на подписку (список ключей или base64 от него),
+    // чтобы эндпоинт нельзя было использовать как прокси для произвольных страниц.
+    if (!looksLikeSubscription(text)) return res.status(422).json({ error: 'По ссылке нет подписки' });
     const headers = {};
     for (const h of PASS_HEADERS) {
       const v = resp.headers.get(h);

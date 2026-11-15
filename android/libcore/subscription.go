@@ -25,6 +25,9 @@ type Subscription struct {
 
 const maxSubBody = 2 << 20
 
+// subTransport подменяется только в тестах (доверенный тестовый TLS-сервер).
+var subTransport http.RoundTripper
+
 // Device — данные устройства для панелей с лимитом устройств (Remnawave и аналоги).
 // Отправляются честно, от имени нашего приложения.
 type Device struct {
@@ -33,10 +36,23 @@ type Device struct {
 
 func fetchSubscription(rawURL, userAgent string, dev Device) (*Subscription, error) {
 	u, err := url.Parse(strings.TrimSpace(rawURL))
-	if err != nil || (u.Scheme != "https" && u.Scheme != "http") || u.Host == "" {
+	if err != nil || u.Host == "" || (u.Scheme != "https" && u.Scheme != "http") {
 		return nil, errors.New("это не ссылка подписки")
 	}
-	client := &http.Client{Timeout: 20 * time.Second}
+	if u.Scheme != "https" {
+		return nil, errors.New("подписка по незащищённому http:// не поддерживается — нужна ссылка https://")
+	}
+	client := &http.Client{
+		Transport: subTransport,
+		Timeout:   20 * time.Second,
+		// не уходим с https на http при редиректе
+		CheckRedirect: func(r *http.Request, via []*http.Request) error {
+			if r.URL.Scheme != "https" || len(via) >= 3 {
+				return errors.New("небезопасное перенаправление подписки")
+			}
+			return nil
+		},
+	}
 	req, _ := http.NewRequest(http.MethodGet, u.String(), nil)
 	req.Header.Set("User-Agent", userAgent)
 	if dev.HWID != "" {

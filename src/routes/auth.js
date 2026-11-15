@@ -13,8 +13,8 @@ const ARGON = { type: argon2.argon2id, memoryCost: 19456, timeCost: 2, paralleli
 const dummyHashP = argon2.hash('dummy-password-for-timing', ARGON);
 
 const credsSchema = z.object({
-  email: z.string().trim().toLowerCase().email().max(254),
-  password: z.string().min(10, 'Пароль — минимум 10 символов').max(128),
+  email: z.string().trim().toLowerCase().email('Некорректный email').max(254, 'Слишком длинный email'),
+  password: z.string().min(10, 'Пароль — минимум 10 символов').max(128, 'Пароль — максимум 128 символов'),
 });
 
 function loginSession(req, userId) {

@@ -186,3 +186,21 @@ html { overflow-x: hidden; }
 .sheet-actions .btn { padding: 0 12px; font-size: 15px; }
 button:focus { outline: none; }
 button:focus-visible, a:focus-visible, .loc:focus-visible { outline: 2px solid rgba(124, 92, 255, .8); outline-offset: 2px; }
+
+/* ---------- подписки ---------- */
+#subs-wrap { margin-top: 30px; }
+.subs { display: flex; flex-direction: column; gap: 10px; }
+.sub-card { padding: 16px; }
+.sub-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.sub-title { font-size: 18px; font-weight: 700; letter-spacing: -.02em; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sub-actions { display: flex; gap: 6px; }
+.icon-btn.small { width: 36px; height: 36px; border-radius: 12px; }
+.icon-btn.small svg { width: 18px; height: 18px; }
+.spinning svg { animation: spin 1s linear infinite; }
+.sub-meta { color: var(--muted); font-size: 14px; margin-top: 2px; }
+.bar { height: 8px; border-radius: 99px; background: rgba(255, 255, 255, .08); overflow: hidden; margin-top: 14px; }
+.bar i { display: block; height: 100%; border-radius: 99px; background: var(--grad); }
+.bar-text { font-size: 13px; color: var(--muted); margin-top: 6px; }
+.sub-announce { margin-top: 12px; padding: 10px 12px; border-radius: 14px; background: rgba(124, 92, 255, .12); border: 1px solid rgba(124, 92, 255, .25); font-size: 14px; white-space: pre-line; }
+.sub-error { margin-top: 12px; padding: 10px 12px; border-radius: 14px; background: rgba(255, 92, 120, .1); border: 1px solid rgba(255, 92, 120, .3); color: #ffb3c0; font-size: 14px; }
+.sub-link { display: inline-block; margin-top: 10px; color: #a99bff; font-size: 14px; font-weight: 600; text-decoration: none; }

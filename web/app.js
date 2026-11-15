@@ -24,7 +24,7 @@ const CLIENTS = {
   },
 };
 
-const LS = { items: 'myvpn.items', sel: 'myvpn.sel', client: 'myvpn.client', onboarded: 'myvpn.onboarded' };
+const LS = { items: 'myvpn.items', sel: 'myvpn.sel', client: 'myvpn.client', onboarded: 'myvpn.onboarded', hwid: 'myvpn.hwid' };
 
 function load(key, def) {
   try { const v = localStorage.getItem(key); return v === null ? def : JSON.parse(v); } catch { return def; }
@@ -37,6 +37,15 @@ let items = load(LS.items, []);
 let selId = load(LS.sel, null);
 let client = load(LS.client, 'happ');
 if (!CLIENTS[client]) client = 'happ';
+
+/** Случайный ID этого устройства — провайдеры с лимитом устройств считают по нему. */
+let hwid = load(LS.hwid, null);
+if (typeof hwid !== 'string' || !/^[a-f0-9]{16,64}$/.test(hwid)) {
+  const b = new Uint8Array(8);
+  crypto.getRandomValues(b);
+  hwid = Array.from(b, (x) => x.toString(16).padStart(2, '0')).join('');
+  save(LS.hwid, hwid);
+}
 
 const $ = (id) => document.getElementById(id);
 
@@ -129,8 +138,78 @@ function addFromText(text) {
   save(LS.items, items);
   save(LS.sel, selId);
   render();
-  toast(added ? (found[0].kind === 'sub' ? 'Подписка добавлена' : 'Добавлено ключей: ' + added) : 'Это уже добавлено');
+  if (found[0].kind === 'sub') {
+    const sub = items.find((x) => x.raw === found[0].raw);
+    if (sub) refreshSub(sub, true);
+  } else {
+    toast(added ? 'Добавлено ключей: ' + added : 'Это уже добавлено');
+  }
 }
+
+/* ---------- подписки ---------- */
+
+function decodeHeaderText(v) {
+  if (!v) return '';
+  if (v.startsWith('base64:')) { try { return b64decode(v.slice(7)); } catch { return ''; } }
+  return v;
+}
+
+/** Ответ провайдера → {servers, notices, info}. «Ключи» на 0.0.0.0 — это сообщения провайдера. */
+function parseSubResponse(data) {
+  let text = String(data.body || '').trim();
+  if (!text.includes('://')) { try { text = b64decode(text); } catch { /* как есть */ } }
+  const servers = [], notices = [];
+  for (const line of text.split(/\s+/)) {
+    const p = parseKey(line.trim());
+    if (!p) continue;
+    if (/^0\.0\.0\.0:/.test(p.host)) { if (p.name) notices.push(p.name); continue; }
+    servers.push({ raw: line.trim(), name: p.name || p.host, proto: p.proto });
+  }
+  const h = data.headers || {};
+  const info = { title: decodeHeaderText(h['profile-title']).slice(0, 80), announce: decodeHeaderText(h.announce).slice(0, 300) };
+  for (const part of String(h['subscription-userinfo'] || '').split(';')) {
+    const [k, v] = part.split('=').map((x) => (x || '').trim());
+    const n = Number(v) || 0;
+    if (k === 'upload' || k === 'download') info.used = (info.used || 0) + n;
+    if (k === 'total') info.total = n;
+    if (k === 'expire') info.expire = n;
+  }
+  const su = h['support-url'] || '';
+  if (/^https:\/\//.test(su)) info.support = su;
+  return { servers, notices, info };
+}
+
+const refreshing = new Set();
+async function refreshSub(sub, announce) {
+  if (refreshing.has(sub.id)) return;
+  refreshing.add(sub.id);
+  render();
+  try {
+    const r = await fetch('/api/sub', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url: sub.raw, hwid }),
+    });
+    const data = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(data.error || 'Не удалось загрузить подписку');
+    const { servers, notices, info } = parseSubResponse(data);
+    sub.servers = servers;
+    sub.notices = notices;
+    sub.info = info;
+    sub.updatedAt = Date.now();
+    if (info.title) sub.name = info.title;
+    sub.error = servers.length ? '' : (notices.join(' · ') || 'В подписке нет серверов');
+    if (announce) toast(servers.length ? 'Серверов: ' + servers.length : sub.error);
+  } catch (e) {
+    sub.error = e.message;
+    if (announce) toast(e.message);
+  } finally {
+    refreshing.delete(sub.id);
+    save(LS.items, items);
+    render();
+  }
+}
+
 
 /* ---------- интерфейс ---------- */
 
@@ -150,6 +229,7 @@ const GLOBE = ['M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18z', 'M3 12h18', 'M12 3c2.5 2.
 const LAYERS = ['M12 3 3 8l9 5 9-5z', 'M3 13l9 5 9-5'];
 const CHECK = ['M5 12.5l4.5 4.5L19 7.5'];
 const TRASH = ['M5 7h14', 'M10 7V5h4v2', 'M7 7l1 12h8l1-12'];
+const REFRESH = ['M20 11a8 8 0 0 0-14.6-4.5L4 8', 'M4 3v5h5', 'M4 13a8 8 0 0 0 14.6 4.5L20 16', 'M20 21v-5h-5'];
 
 /** Флаг страны из начала названия («🇳🇱 Нидерланды») — если есть. */
 function splitFlag(name) {
@@ -176,7 +256,19 @@ function toast(msg) {
   toastTimer = setTimeout(() => { t.hidden = true; }, 3000);
 }
 
-function selected() { return items.find((x) => x.id === selId) || items[0] || null; }
+/** Все локации: одиночные ключи + серверы из подписок (подписка без серверов — одна строка). */
+function locations() {
+  const out = [];
+  for (const it of items) {
+    if (it.kind === 'sub' && it.servers && it.servers.length) {
+      it.servers.forEach((sv, i) => out.push({ id: it.id + '/' + i, kind: 'key', name: sv.name, proto: sv.proto, raw: sv.raw, parent: it }));
+    } else {
+      out.push({ id: it.id, kind: it.kind, name: it.name, proto: it.proto, raw: it.raw, parent: null, item: it });
+    }
+  }
+  return out;
+}
+function selected() { const l = locations(); return l.find((x) => x.id === selId) || l[0] || null; }
 
 function pluralLoc(n) {
   const m10 = n % 10, m100 = n % 100;
@@ -185,7 +277,65 @@ function pluralLoc(n) {
   return n + ' локаций';
 }
 
+function fmtGB(b) { return (b / 1073741824).toFixed(b >= 10 * 1073741824 ? 0 : 1) + ' ГБ'; }
+function fmtDate(unix) { return new Date(unix * 1000).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' }); }
+
+function deleteItem(it) {
+  if (!confirm('Удалить «' + splitFlag(it.name).text + '»?')) return;
+  items = items.filter((x) => x.id !== it.id);
+  if (selId && (selId === it.id || selId.startsWith(it.id + '/'))) selId = null;
+  save(LS.items, items); save(LS.sel, selId); render();
+}
+
+function renderSubs() {
+  const box = $('subs');
+  box.replaceChildren();
+  const subs = items.filter((x) => x.kind === 'sub');
+  $('subs-wrap').hidden = subs.length === 0;
+  for (const sub of subs) {
+    const card = document.createElement('div'); card.className = 'glass sub-card';
+    const head = document.createElement('div'); head.className = 'sub-head';
+    const title = document.createElement('div'); title.className = 'sub-title'; title.textContent = sub.name;
+    const actions = document.createElement('div'); actions.className = 'sub-actions';
+    const upd = document.createElement('button'); upd.className = 'icon-btn small'; upd.setAttribute('aria-label', 'Обновить');
+    upd.append(icon(REFRESH));
+    if (refreshing.has(sub.id)) upd.classList.add('spinning');
+    upd.addEventListener('click', () => refreshSub(sub, true));
+    const del = document.createElement('button'); del.className = 'icon-btn small'; del.setAttribute('aria-label', 'Удалить подписку');
+    del.append(icon(TRASH));
+    del.addEventListener('click', () => deleteItem(sub));
+    actions.append(upd, del);
+    head.append(title, actions);
+    card.append(head);
+
+    const info = sub.info || {};
+    const meta = document.createElement('div'); meta.className = 'sub-meta';
+    const parts = [];
+    if (info.expire) parts.push((info.expire * 1000 < Date.now() ? 'истекла ' : 'до ') + fmtDate(info.expire));
+    if (sub.servers && sub.servers.length) parts.push(pluralLoc(sub.servers.length));
+    meta.textContent = parts.join(' · ') || (refreshing.has(sub.id) ? 'Загружаем…' : '');
+    card.append(meta);
+
+    if (info.total) {
+      const bar = document.createElement('div'); bar.className = 'bar';
+      const fill = document.createElement('i'); fill.style.width = Math.min(100, (info.used || 0) / info.total * 100) + '%';
+      bar.append(fill);
+      const t = document.createElement('div'); t.className = 'bar-text';
+      t.textContent = fmtGB(info.used || 0) + ' из ' + fmtGB(info.total);
+      card.append(bar, t);
+    }
+    if (info.announce) { const a = document.createElement('div'); a.className = 'sub-announce'; a.textContent = info.announce; card.append(a); }
+    if (sub.error) { const e = document.createElement('div'); e.className = 'sub-error'; e.textContent = sub.error; card.append(e); }
+    if (info.support) {
+      const a = document.createElement('a'); a.className = 'sub-link'; a.href = info.support; a.target = '_blank'; a.rel = 'noopener';
+      a.textContent = 'Поддержка провайдера'; card.append(a);
+    }
+    box.append(card);
+  }
+}
+
 function render() {
+  const locs = locations();
   const sel = selected();
   if (sel && sel.id !== selId) { selId = sel.id; save(LS.sel, selId); }
   const c = CLIENTS[client];
@@ -199,35 +349,34 @@ function render() {
     $('current-proto').textContent = protoLabel(sel);
   }
   $('empty').hidden = items.length > 0;
-  $('locations-wrap').hidden = items.length === 0;
-  $('count').textContent = pluralLoc(items.length);
+  renderSubs();
+  $('locations-wrap').hidden = locs.length === 0;
+  $('count').textContent = pluralLoc(locs.length);
 
   const list = $('list');
   list.replaceChildren();
-  for (const it of items) {
+  for (const loc of locs) {
     const li = document.createElement('li');
-    li.className = 'loc' + (sel && it.id === sel.id ? ' sel' : '');
+    li.className = 'loc' + (sel && loc.id === sel.id ? ' sel' : '');
     li.tabIndex = 0;
-    const flag = document.createElement('span'); flag.className = 'flag'; fillFlag(flag, it);
+    const flag = document.createElement('span'); flag.className = 'flag'; fillFlag(flag, loc);
     const body = document.createElement('div'); body.className = 'body';
-    const name = document.createElement('div'); name.className = 'name'; name.textContent = splitFlag(it.name).text;
+    const name = document.createElement('div'); name.className = 'name'; name.textContent = splitFlag(loc.name).text;
     const meta = document.createElement('div'); meta.className = 'meta';
-    meta.textContent = it.kind === 'sub' ? 'Подписка · серверы внутри ' + c.name : protoLabel(it);
+    meta.textContent = loc.kind === 'sub' ? 'Подписка · откроется в ' + c.name
+      : protoLabel(loc) + (loc.parent ? ' · ' + loc.parent.name : '');
     body.append(name, meta);
     const check = document.createElement('span'); check.className = 'check'; check.append(icon(CHECK));
-    const del = document.createElement('button');
-    del.className = 'del'; del.setAttribute('aria-label', 'Удалить'); del.append(icon(TRASH));
-    del.addEventListener('click', (e) => {
-      e.stopPropagation();
-      if (!confirm('Удалить «' + splitFlag(it.name).text + '»?')) return;
-      items = items.filter((x) => x.id !== it.id);
-      if (selId === it.id) selId = items[0] ? items[0].id : null;
-      save(LS.items, items); save(LS.sel, selId); render();
-    });
-    const choose = () => { selId = it.id; save(LS.sel, selId); render(); };
+    li.append(flag, body, check);
+    if (!loc.parent && loc.kind !== 'sub') {
+      const del = document.createElement('button');
+      del.className = 'del'; del.setAttribute('aria-label', 'Удалить'); del.append(icon(TRASH));
+      del.addEventListener('click', (e) => { e.stopPropagation(); deleteItem(loc.item); });
+      li.append(del);
+    }
+    const choose = () => { selId = loc.id; save(LS.sel, selId); render(); };
     li.addEventListener('click', choose);
     li.addEventListener('keydown', (e) => { if (e.key === 'Enter') choose(); });
-    li.append(flag, body, check, del);
     list.append(li);
   }
 }
@@ -299,6 +448,9 @@ document.addEventListener('DOMContentLoaded', () => {
   document.querySelectorAll('dialog.sheet').forEach((d) =>
     d.addEventListener('click', (e) => { if (e.target === d) d.close('cancel'); }));
   render();
+  for (const it of items) {
+    if (it.kind === 'sub' && (!it.updatedAt || Date.now() - it.updatedAt > 30 * 60 * 1000)) refreshSub(it, false);
+  }
   if (isIOS() && !load(LS.onboarded, false)) {
     save(LS.onboarded, true);
     const c = CLIENTS[client];

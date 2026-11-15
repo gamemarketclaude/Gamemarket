@@ -1,5 +1,5 @@
 // Офлайн-кэш оболочки приложения. Ключи сюда не попадают — они в localStorage.
-const CACHE = 'myvpn-v2';
+const CACHE = 'myvpn-v3';
 const ASSETS = ['/', '/index.html', '/style.css', '/app.js', '/manifest.webmanifest',
   '/icons/apple-touch-icon.png', '/icons/icon-192.png', '/icons/icon-512.png'];
 
@@ -12,7 +12,8 @@ self.addEventListener('activate', (e) => {
 });
 // Сначала сеть (чтобы обновления приходили сразу), при её отсутствии — кэш.
 self.addEventListener('fetch', (e) => {
-  if (e.request.method !== 'GET' || new URL(e.request.url).origin !== location.origin) return;
+  const u = new URL(e.request.url);
+  if (e.request.method !== 'GET' || u.origin !== location.origin || u.pathname.startsWith('/api/')) return;
   e.respondWith(
     fetch(e.request).then((r) => {
       const copy = r.clone();

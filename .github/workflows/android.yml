@@ -82,6 +82,21 @@ jobs:
           done
           ls -la dist
 
+      # Свежий APK кладётся на сайт (web/download), чтобы скачивание работало
+      # и при закрытом репозитории. Только при публикации релиза и только из main.
+      - name: Публикация APK на сайт
+        if: (startsWith(github.ref, 'refs/tags/v') || inputs.release != '') && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
+        run: |
+          git fetch origin main
+          git checkout -B main origin/main
+          mkdir -p web/download
+          cp dist/myvpn-universal.apk web/download/myvpn.apk
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add web/download/myvpn.apk
+          git commit -m "Сайт: новая версия Android-приложения" || echo "без изменений"
+          git push origin main
+
       - uses: actions/upload-artifact@v4
         with:
           name: apk

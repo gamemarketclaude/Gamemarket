@@ -447,6 +447,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // Закрытие листов тапом по затемнению
   document.querySelectorAll('dialog.sheet').forEach((d) =>
     d.addEventListener('click', (e) => { if (e.target === d) d.close('cancel'); }));
+  if (/Android/i.test(navigator.userAgent)) $('android-banner').hidden = false;
   render();
   for (const it of items) {
     if (it.kind === 'sub' && (!it.updatedAt || Date.now() - it.updatedAt > 30 * 60 * 1000)) refreshSub(it, false);

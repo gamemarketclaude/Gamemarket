@@ -204,3 +204,8 @@ button:focus-visible, a:focus-visible, .loc:focus-visible { outline: 2px solid r
 .sub-announce { margin-top: 12px; padding: 10px 12px; border-radius: 14px; background: rgba(124, 92, 255, .12); border: 1px solid rgba(124, 92, 255, .25); font-size: 14px; white-space: pre-line; }
 .sub-error { margin-top: 12px; padding: 10px 12px; border-radius: 14px; background: rgba(255, 92, 120, .1); border: 1px solid rgba(255, 92, 120, .3); color: #ffb3c0; font-size: 14px; }
 .sub-link { display: inline-block; margin-top: 10px; color: #a99bff; font-size: 14px; font-weight: 600; text-decoration: none; }
+
+.android-banner { display: flex; align-items: center; gap: 12px; padding: 12px 14px; margin-top: 14px; text-decoration: none; color: var(--text); }
+.android-dot { width: 36px; height: 36px; border-radius: 12px; flex: none; background: linear-gradient(135deg, #3ddc84, #2fe3d0); }
+.android-text { flex: 1; display: flex; flex-direction: column; font-size: 14px; }
+.android-text span { color: var(--muted); font-size: 13px; }

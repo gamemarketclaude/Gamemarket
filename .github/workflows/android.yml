@@ -93,7 +93,7 @@ jobs:
           cp dist/myvpn-universal.apk web/download/myvpn.apk
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add web/download/myvpn.apk
+          git add -f web/download/myvpn.apk
           git commit -m "Сайт: новая версия Android-приложения" || echo "без изменений"
           git push origin main
 
